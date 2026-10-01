@@ -1066,7 +1066,7 @@ function Ledger({ tenant, onBack, onCustomerView }) {
   const loadMonth = useCallback(async () => {
     setLoaded(false);
     let localData = {};
-    try { const r = await window.storage.get(storeKey); if (r && r.value) localData = JSON.parse(r.value); } catch {}
+    try { const r = await window.storage.get(storeKey); if (r && r.value) { const parsed = JSON.parse(r.value); localData = (parsed && typeof parsed === "object" && !Array.isArray(parsed)) ? parsed : {}; } } catch {}
     setEntries(localData);
     setLoaded(true);
 
@@ -1104,8 +1104,9 @@ function Ledger({ tenant, onBack, onCustomerView }) {
     // True Firebase realtime listener: other devices update this ledger automatically.
     const unsubscribe = window.subscribeKeyFromCloud(storeKey, (remoteData) => {
       if (remoteData) {
-        setEntries(remoteData);
-        window.storage.set(storeKey, JSON.stringify(remoteData)).catch(() => {});
+        const safeRemote = (remoteData && typeof remoteData === "object" && !Array.isArray(remoteData)) ? remoteData : {};
+        setEntries(safeRemote);
+        window.storage.set(storeKey, JSON.stringify(safeRemote)).catch(() => {});
         setCloudStatus("synced", "Database updated ✓");
       }
     });
@@ -1128,7 +1129,7 @@ function Ledger({ tenant, onBack, onCustomerView }) {
     }
   };
 
-  const getEntry = (d) => entries[dk(year, month, d)] || { status: null, signature: null };
+  const getEntry = (d) => (entries && typeof entries === "object" ? entries[dk(year, month, d)] : null) || { status: null, signature: null };
   const dayLabel = (d) => new Date(year, month - 1, d).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" });
   const [editingDay, setEditingDay] = useState(null);
   
@@ -1878,7 +1879,7 @@ function CategoryReport({ category, onBack }) {
     let localData = {};
     try {
       const r = await window.storage.get(key);
-      if (r && r.value) localData = JSON.parse(r.value);
+      if (r && r.value) { const parsed = JSON.parse(r.value); localData = (parsed && typeof parsed === "object" && !Array.isArray(parsed)) ? parsed : {}; }
     } catch (ex) {}
     try {
       const cloudData = await fetchKeyFromCloud(key);
@@ -2727,7 +2728,7 @@ function CustomerView({ tenant, onBack }) {
 
   const load = useCallback(async () => {
     let local = {};
-    try { const r=await window.storage.get(storeKey); if(r&&r.value)local=JSON.parse(r.value); } catch(_) {}
+    try { const r=await window.storage.get(storeKey); if(r&&r.value){const parsed=JSON.parse(r.value);local=(parsed&&typeof parsed==="object"&&!Array.isArray(parsed))?parsed:{};} } catch(_) {}
     // Local cache is only the instant fallback. Firebase is authoritative.
     try {
       const cloud = await fetchKeyFromCloud(storeKey);
@@ -2741,11 +2742,11 @@ function CustomerView({ tenant, onBack }) {
   useEffect(()=>{load();},[load]);
   useEffect(()=>{
     return window.subscribeKeyFromCloud(storeKey, remote => {
-      if (remote) { setEntries(remote); window.storage.set(storeKey,JSON.stringify(remote)).catch(()=>{}); }
+      const safeRemote = (remote && typeof remote === "object" && !Array.isArray(remote)) ? remote : {}; setEntries(safeRemote); window.storage.set(storeKey,JSON.stringify(safeRemote)).catch(()=>{});
     });
   },[storeKey]);
 
-  const getEntry = d => entries[dk(year,month,d)] || {status:null,signature:null};
+  const getEntry = d => (entries && typeof entries === "object" ? entries[dk(year,month,d)] : null) || {status:null,signature:null};
   const saveSignature = async (d, signature) => {
     const key=dk(year,month,d);
     const next={...entries,[key]:{...getEntry(d),signature}};
