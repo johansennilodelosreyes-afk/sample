@@ -1,0 +1,3055 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Banahaw Food Park - Rent Ledger v28</title>
+<link rel="manifest" href="./manifest.json" />
+<meta name="theme-color" content="#1B2A4A" />
+<link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png" />
+<link rel="apple-touch-icon" type="image/png" sizes="192x192" href="./icon-192.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Banahaw Food Park" />
+<meta name="mobile-web-app-capable" content="yes" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-database-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<style>
+  :root {
+    --navy: #1B2A4A;
+    --navy-light: #2C3E6B;
+    --gold: #C5961A;
+    --gold-light: #F5DFA0;
+    --green: #27763D;
+    --green-bg: #E8F5EC;
+    --red: #B33025;
+    --red-bg: #FDE8E6;
+    --paper: #FAFAF7;
+    --paper-alt: #F4F2EC;
+    --ink: #1E1E1E;
+    --ink-soft: #5C5C5C;
+    --border: #DDD8CC;
+    --border-light: #ECEAE0;
+  }
+  html, body { margin: 0; padding: 0; background: var(--paper); color: var(--ink); font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; -webkit-font-smoothing: antialiased; }
+  * { box-sizing: border-box; }
+  @media print { body { background: #fff !important; } .no-print { display: none !important; } }
+  input:focus, select:focus, button:focus-visible { outline: 2px solid var(--navy); outline-offset: 2px; }
+  
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
+  @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+  
+  .fade-in { animation: fadeIn 0.3s ease-out; }
+  .slide-up { animation: slideUp 0.4s ease-out; }
+  .hover-lift { transition: all 0.2s ease; }
+  .hover-lift:hover { transform: translateY(-3px); box-shadow: 0 8px 25px rgba(0,0,0,0.1) !important; }
+  .btn-hover { transition: all 0.15s ease; }
+  .btn-hover:hover { transform: translateY(-1px); filter: brightness(1.1); }
+  .btn-hover:active { transform: translateY(0); filter: brightness(0.95); }
+  
+  .modal-backdrop { animation: fadeIn 0.2s ease-out; }
+  .modal-content { animation: slideUp 0.3s ease-out; }
+  .table-row { transition: background 0.15s ease; }
+  .table-row:hover { background: rgba(27,42,74,0.03) !important; }
+  
+  .ripple { position: relative; overflow: hidden; }
+  .ripple:after {
+    content: ''; position: absolute; top: 50%; left: 50%; width: 0; height: 0;
+    border-radius: 50%; background: rgba(255,255,255,0.3); transform: translate(-50%, -50%);
+    transition: width 0.3s, height 0.3s;
+  }
+  .ripple:active:after { width: 200px; height: 200px; }
+  .card-shine { position: relative; overflow: hidden; }
+  .card-shine::before {
+    content: ''; position: absolute; top: 0; left: -100%; width: 50%; height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+    transition: left 0.5s;
+  }
+  .card-shine:hover::before { left: 100%; }
+  .input-glow:focus { border-color: var(--navy); box-shadow: 0 0 0 3px rgba(27,42,74,0.1); }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+  window.storage = {
+    get: async function (k) {
+      var r = localStorage.getItem("rl:" + k);
+      if (r === null) throw new Error("not found");
+      return { key: k, value: r };
+    },
+    set: async function (k, v) {
+      var fullKey = "rl:" + k;
+      try {
+        localStorage.setItem(fullKey, v);
+        return { key: k, value: v };
+      } catch (e) {
+        console.warn("LocalStorage quota error, attempting auto-prune of old cached months:", e);
+        try {
+          var keysToRemove = [];
+          for (var i = 0; i < localStorage.length; i++) {
+            var lk = localStorage.key(i);
+            if (lk && lk.startsWith("rl:entries:")) {
+              keysToRemove.push(lk);
+            }
+          }
+          keysToRemove.sort();
+          for (var j = 0; j < keysToRemove.length; j++) {
+            if (keysToRemove[j] !== fullKey) {
+              localStorage.removeItem(keysToRemove[j]);
+              try {
+                localStorage.setItem(fullKey, v);
+                console.log("Auto-pruned " + keysToRemove[j] + " successfully!");
+                return { key: k, value: v };
+              } catch(retryErr) {}
+            }
+          }
+          return { key: k, value: v, warning: "storage_quota_exceeded" };
+        } catch(pruneErr) {
+          return { key: k, value: v, warning: "storage_quota_exceeded" };
+        }
+      }
+    },
+    delete: async function (k) {
+      localStorage.removeItem("rl:" + k);
+      return { key: k, deleted: true };
+    }
+  };
+  // ── PWA Install Button support ──
+  window.deferredInstallPrompt = null;
+  window.addEventListener("beforeinstallprompt", function (e) {
+    e.preventDefault();
+    window.deferredInstallPrompt = e;
+    window.dispatchEvent(new Event("pwa-install-available"));
+  });
+  window.addEventListener("appinstalled", function () {
+    window.deferredInstallPrompt = null;
+    window.dispatchEvent(new Event("pwa-installed"));
+  });
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", function () {
+      navigator.serviceWorker.register("./sw.js").catch(function () {});
+    });
+  }
+
+  // ── Firebase Realtime Database: single-source-of-truth data layer ──
+  // Firebase is authoritative. localStorage is cache/preferences only.
+  // Normal operation uses realtime listeners; no whole-root PUT/restore is used.
+  var FIREBASE_DB_URL = "https://banahaw-food-park-default-rtdb.firebaseio.com";
+  var FIREBASE_RECORD_PATH = "banahaw_food_park"; // v28 realtime architecture
+  var ACTIVITY_LOG_MAX = 300;
+  var CACHE_MONTHS_TO_KEEP = 3;
+  var cloudSyncState = "idle";
+  var BANHAW_DEVICE_ID = (function () {
+    try {
+      var k="rl:deviceId", x=localStorage.getItem(k);
+      if(!x){x="dev_"+Math.random().toString(36).slice(2)+Date.now().toString(36);localStorage.setItem(k,x);}
+      return x;
+    } catch(e){return "dev_unknown";}
+  })();
+
+  var firebaseReady=false, firebaseDb=null;
+  try{
+    if(!firebase.apps.length) firebase.initializeApp({databaseURL:FIREBASE_DB_URL});
+    firebaseDb=firebase.database(); firebaseReady=true;
+  }catch(e){console.warn("Firebase initialization failed; offline cache remains available.",e);}
+
+  // ---------- IndexedDB offline outbox ----------
+  var OUTBOX_DB="banahaw_food_park_offline", OUTBOX_STORE="mutations", outboxDbPromise=null;
+  function openOutboxDb(){
+    if(!window.indexedDB) return Promise.resolve(null);
+    if(outboxDbPromise) return outboxDbPromise;
+    outboxDbPromise=new Promise(function(resolve){
+      try{
+        var req=indexedDB.open(OUTBOX_DB,1);
+        req.onupgradeneeded=function(){
+          var db=req.result;
+          if(!db.objectStoreNames.contains(OUTBOX_STORE)){
+            var st=db.createObjectStore(OUTBOX_STORE,{keyPath:"id"});
+            st.createIndex("ts","ts",{unique:false});
+          }
+        };
+        req.onsuccess=function(){resolve(req.result);};
+        req.onerror=function(){resolve(null);};
+      }catch(e){resolve(null);}
+    });
+    return outboxDbPromise;
+  }
+  async function queueMutation(m){
+    var db=await openOutboxDb();
+    if(!db){try{localStorage.setItem("rl:outbox_fallback",JSON.stringify(m));}catch(e){}return;}
+    return new Promise(function(resolve){
+      try{var tx=db.transaction(OUTBOX_STORE,"readwrite");tx.objectStore(OUTBOX_STORE).put(m);tx.oncomplete=resolve;tx.onerror=resolve;}catch(e){resolve();}
+    });
+  }
+  async function readQueuedMutations(){
+    var db=await openOutboxDb(); if(!db)return [];
+    return new Promise(function(resolve){
+      try{
+        var req=db.transaction(OUTBOX_STORE,"readonly").objectStore(OUTBOX_STORE).getAll();
+        req.onsuccess=function(){var a=req.result||[];a.sort(function(x,y){return String(x.ts).localeCompare(String(y.ts));});resolve(a);};
+        req.onerror=function(){resolve([]);};
+      }catch(e){resolve([]);}
+    });
+  }
+  async function removeQueuedMutation(id){var db=await openOutboxDb();if(!db)return;try{db.transaction(OUTBOX_STORE,"readwrite").objectStore(OUTBOX_STORE).delete(id);}catch(e){}}
+
+  function setCloudStatus(state,message){cloudSyncState=state;window.dispatchEvent(new CustomEvent("cloudsync",{detail:message||state}));}
+  function cloudPath(parts){return FIREBASE_RECORD_PATH+"/"+parts.map(function(p){return String(p).replace(/[.#$\[\]]/g,"_");}).join("/");}
+  function keyParts(key){return String(key||"").split(":");}
+  function targetPathForLegacyKey(key){
+    var p=keyParts(key);
+    if(p[0]==="tenants"&&p.length===2)return cloudPath(["tenants",p[1]]);
+    if(p[0]==="entries"&&p.length===4)return cloudPath(["entries",p[1],p[2],p[3]]);
+    if(p[0]==="ambagan"&&p.length===2)return cloudPath(["ambagan",p[1]]);
+    if(p[0]==="activityLog")return cloudPath(["activityLog"]);
+    if(p[0]==="pin")return cloudPath(["settings","pin"]);
+    return cloudPath(["settings",p[0]||"misc"]);
+  }
+  function normalizeTenantCollection(v){
+    if(Array.isArray(v))return v;
+    if(!v||typeof v!=="object")return [];
+    return Object.keys(v).map(function(id){return v[id];}).filter(Boolean);
+  }
+
+  // Firebase snapshots are authoritative. Kept for existing report code that still
+  // calls mergeEntries(local, remote).
+  function mergeEntries(local, remote){
+    if(remote && typeof remote === "object") return remote;
+    return local || {};
+  }
+  function cacheKey(k){return "rl:"+k;}
+  async function cacheGet(k){try{var v=localStorage.getItem(cacheKey(k));return v===null?null:v;}catch(e){return null;}}
+  async function cacheSet(k,v){
+    try{localStorage.setItem(cacheKey(k),v);pruneLocalCache();}
+    catch(e){try{
+      var a=[];for(var i=0;i<localStorage.length;i++){var x=localStorage.key(i);if(x&&x.indexOf("rl:entries:")===0)a.push(x);}
+      for(var j=0;j<a.length;j++)if(a[j]!==cacheKey(k))localStorage.removeItem(a[j]);
+      localStorage.setItem(cacheKey(k),v);
+    }catch(e2){}}
+  }
+  function pruneLocalCache(){
+    try{
+      var now=new Date(),keep={};
+      for(var i=0;i<CACHE_MONTHS_TO_KEEP;i++){var d=new Date(now.getFullYear(),now.getMonth()-i,1);keep[d.getFullYear()+"-"+pad(d.getMonth()+1)]=true;}
+      var remove=[];
+      for(var j=0;j<localStorage.length;j++){var k=localStorage.key(j),m=k&&k.match(/^rl:entries:.*:(\d{4}-\d{2})$/);if(m&&!keep[m[1]])remove.push(k);}
+      remove.forEach(function(k){localStorage.removeItem(k);});
+    }catch(e){}
+  }
+
+  async function fetchKeyFromCloud(key){
+    if(!firebaseReady||!firebaseDb)return null;
+    try{var v=await firebaseDb.ref(targetPathForLegacyKey(key)).once("value").then(function(s){return s.val();});
+      return keyParts(key)[0]==="tenants"?normalizeTenantCollection(v):v;
+    }catch(e){console.warn("Firebase read failed:",e);return null;}
+  }
+  function subscribeKeyFromCloud(key,onValue){
+    if(!firebaseReady||!firebaseDb)return function(){};
+    var ref=firebaseDb.ref(targetPathForLegacyKey(key));
+    var handler=function(snap){var v=snap.val();if(keyParts(key)[0]==="tenants")v=normalizeTenantCollection(v);try{cacheSet(key,JSON.stringify(v));}catch(e){}onValue(v,{source:"firebase"});};
+    ref.on("value",handler);return function(){try{ref.off("value",handler);}catch(e){}};
+  }
+  window.subscribeKeyFromCloud=subscribeKeyFromCloud;
+
+  // Writes one ledger day only. A transaction merges the patch with the latest Firebase day,
+  // preventing a stale device from erasing another device's signature/payment fields.
+  async function syncEntryDay(category,tenantId,month,dayKey,patch,mutationTime){
+    var path=cloudPath(["entries",category,tenantId,month,dayKey]), ts=mutationTime||new Date().toISOString();
+    if(!firebaseReady||!firebaseDb){await queueMutation({id:Date.now()+"_"+Math.random(),kind:"entryDay",path:path,patch:patch,ts:ts,deviceId:BANHAW_DEVICE_ID});return false;}
+    try{
+      var result=await firebaseDb.ref(path).transaction(function(current){
+        var next=(current&&typeof current==="object")?Object.assign({},current):{};
+        Object.keys(patch||{}).forEach(function(k){if(patch[k]===undefined)delete next[k];else next[k]=patch[k];});
+        next._meta={updatedAt:ts,updatedBy:BANHAW_DEVICE_ID};return next;
+      });
+      if(!result.committed){
+        await queueMutation({id:Date.now()+"_"+Math.random(),kind:"entryDay",path:path,patch:patch,ts:ts,deviceId:BANHAW_DEVICE_ID});
+      } else if (Object.prototype.hasOwnProperty.call(patch || {}, "signature")) {
+        var sidPath = cloudPath(["signatures",tenantId+"__"+dayKey]);
+        var sigValue = patch.signature;
+        if (sigValue) {
+          await firebaseDb.ref(sidPath).set({tenantId:tenantId,category:category,date:dayKey,image:sigValue,updatedAt:ts,updatedBy:BANHAW_DEVICE_ID,active:true});
+        } else {
+          await firebaseDb.ref(sidPath).update({active:false,updatedAt:ts,updatedBy:BANHAW_DEVICE_ID});
+        }
+      }
+      return !!result.committed;
+    }catch(e){await queueMutation({id:Date.now()+"_"+Math.random(),kind:"entryDay",path:path,patch:patch,ts:ts,deviceId:BANHAW_DEVICE_ID});return false;}
+  }
+  window.syncEntryDay=syncEntryDay;
+
+  async function syncTenants(category,list,mutationTime,baseList){
+    var path=cloudPath(["tenants",category]),desired=Array.isArray(list)?list:[],base=Array.isArray(baseList)?baseList:[],ts=mutationTime||new Date().toISOString();
+    if(!firebaseReady||!firebaseDb){await queueMutation({id:Date.now()+"_"+Math.random(),kind:"tenants",path:path,value:desired,ts:ts,deviceId:BANHAW_DEVICE_ID});return false;}
+    try{
+      var result=await firebaseDb.ref(path).transaction(function(current){
+        var cur=normalizeTenantCollection(current),byId={};cur.forEach(function(t){if(t&&t.id)byId[t.id]=t;});
+        var baseById={};base.forEach(function(t){if(t&&t.id)baseById[t.id]=t;});
+        var desiredById={};desired.forEach(function(t){if(t&&t.id)desiredById[t.id]=t;});
+        Object.keys(desiredById).forEach(function(id){byId[id]=desiredById[id];});
+        // Only delete an ID if it existed in this device's base snapshot. A concurrent
+        // tenant added by another device is therefore preserved.
+        Object.keys(baseById).forEach(function(id){if(!desiredById[id])delete byId[id];});
+        return byId;
+      });
+      if(!result.committed)await queueMutation({id:Date.now()+"_"+Math.random(),kind:"tenants",path:path,value:desired,ts:ts,deviceId:BANHAW_DEVICE_ID});
+      return !!result.committed;
+    }catch(e){await queueMutation({id:Date.now()+"_"+Math.random(),kind:"tenants",path:path,value:desired,ts:ts,deviceId:BANHAW_DEVICE_ID});return false;}
+  }
+
+  async function syncLegacyKeyToCloud(key,value,mutationTime,baseValue){
+    var p=keyParts(key),ts=mutationTime||new Date().toISOString();
+    if(p[0]==="tenants"&&p.length===2)return syncTenants(p[1],JSON.parse(value),ts,baseValue||[]);
+    var path=targetPathForLegacyKey(key),val;try{val=JSON.parse(value);}catch(e){val=value;}
+    if(!firebaseReady||!firebaseDb){await queueMutation({id:Date.now()+"_"+Math.random(),kind:"set",path:path,value:val,ts:ts,deviceId:BANHAW_DEVICE_ID});return false;}
+    try{await firebaseDb.ref(path).set(val);return true;}catch(e){await queueMutation({id:Date.now()+"_"+Math.random(),kind:"set",path:path,value:val,ts:ts,deviceId:BANHAW_DEVICE_ID});return false;}
+  }
+
+  async function flushOutbox(){
+    if(!navigator.onLine||!firebaseReady)return;
+    var list=await readQueuedMutations();
+    for(var i=0;i<list.length;i++){
+      var item=list[i],ok=false;
+      try{
+        if(item.kind==="entryDay"){
+          var snap=await firebaseDb.ref(item.path).once("value"),current=snap.val()||{},next=Object.assign({},current);
+          Object.keys(item.patch||{}).forEach(function(k){if(item.patch[k]===undefined)delete next[k];else next[k]=item.patch[k];});
+          next._meta={updatedAt:item.ts,updatedBy:item.deviceId||BANHAW_DEVICE_ID};await firebaseDb.ref(item.path).set(next);
+          if(Object.prototype.hasOwnProperty.call(item.patch||{},"signature")){
+            var seg=item.path.split("/");
+            var cat=seg[2],tid=seg[3],day=seg[5],sp=cloudPath(["signatures",tid+"__"+day]);
+            if(item.patch.signature) await firebaseDb.ref(sp).set({tenantId:tid,category:cat,date:day,image:item.patch.signature,updatedAt:item.ts,updatedBy:item.deviceId||BANHAW_DEVICE_ID,active:true});
+            else await firebaseDb.ref(sp).update({active:false,updatedAt:item.ts,updatedBy:item.deviceId||BANHAW_DEVICE_ID});
+          }
+        }else await firebaseDb.ref(item.path).set(item.value);
+        ok=true;
+      }catch(e){ok=false;}
+      if(ok)await removeQueuedMutation(item.id);
+    }
+    setCloudStatus("synced","Database Synced ✓");
+  }
+  window.addEventListener("online",function(){flushOutbox();});
+  window.addEventListener("offline",function(){setCloudStatus("offline","Offline — changes will sync automatically");});
+  setInterval(function(){if(navigator.onLine)flushOutbox();},15000);
+
+  // UI compatibility. This is cache only; callers explicitly sync changes.
+  window.storage={
+    get:async function(k){var v=await cacheGet(k);if(v===null)throw new Error("not found");return{key:k,value:v};},
+    set:async function(k,v){await cacheSet(k,v);return{key:k,value:v};},
+    delete:async function(k){try{localStorage.removeItem(cacheKey(k));}catch(e){}return{key:k,deleted:true};}
+  };
+
+  function logActivity(action,detail){
+    try{var raw=localStorage.getItem("rl:activityLog"),log=raw?JSON.parse(raw):[];log.unshift({ts:new Date().toISOString(),action:action,detail:detail||"",deviceId:BANHAW_DEVICE_ID});if(log.length>ACTIVITY_LOG_MAX)log=log.slice(0,ACTIVITY_LOG_MAX);localStorage.setItem("rl:activityLog",JSON.stringify(log));syncLegacyKeyToCloud("activityLog",JSON.stringify(log));}catch(e){console.warn("logActivity failed:",e);}
+  }
+  window.logActivity=logActivity;
+  function autoBackupToCloud(key,val){if(!key||val===undefined)return;setCloudStatus("syncing","Saving to database…");syncLegacyKeyToCloud(key,val).then(function(ok){setCloudStatus(ok?"synced":"offline",ok?"Database Synced ✓":"Offline — changes will sync automatically");}).catch(function(){setCloudStatus("offline","Offline — changes will sync automatically");});}
+
+  // Kept only for old button handlers. These never replace Firebase with local data.
+  async function cloudBackup(){await flushOutbox();setCloudStatus("synced","Database Synced ✓");return true;}
+  async function cloudRestore(){if(!firebaseReady)throw new Error("Firebase unavailable");return true;}
+
+  function compressSignatureCanvas(canvas) {
+    try {
+      var ctx = canvas.getContext('2d');
+      var w = canvas.width, h = canvas.height;
+      var imgData = ctx.getImageData(0, 0, w, h);
+      var data = imgData.data;
+
+      var minX = w, minY = h, maxX = 0, maxY = 0;
+      var hasPixels = false;
+
+      for (var y = 0; y < h; y++) {
+        for (var x = 0; x < w; x++) {
+          var idx = (y * w + x) * 4;
+          var r = data[idx], g = data[idx + 1], b = data[idx + 2], a = data[idx + 3];
+          if (a > 20 && (r < 235 || g < 235 || b < 235)) {
+            if (x < minX) minX = x;
+            if (x > maxX) maxX = x;
+            if (y < minY) minY = y;
+            if (y > maxY) maxY = y;
+            hasPixels = true;
+          }
+        }
+      }
+
+      if (!hasPixels) return null;
+
+      var pad = 6;
+      minX = Math.max(0, minX - pad);
+      minY = Math.max(0, minY - pad);
+      maxX = Math.min(w - 1, maxX + pad);
+      maxY = Math.min(h - 1, maxY + pad);
+
+      var cropW = maxX - minX + 1;
+      var cropH = maxY - minY + 1;
+
+      var maxTargetW = 240;
+      var maxTargetH = 90;
+      var scale = Math.min(1, maxTargetW / cropW, maxTargetH / cropH);
+
+      var targetW = Math.round(cropW * scale);
+      var targetH = Math.round(cropH * scale);
+
+      var offscreen = document.createElement('canvas');
+      offscreen.width = targetW;
+      offscreen.height = targetH;
+      var oCtx = offscreen.getContext('2d');
+
+      oCtx.fillStyle = '#FFFFFF';
+      oCtx.fillRect(0, 0, targetW, targetH);
+      oCtx.drawImage(canvas, minX, minY, cropW, cropH, 0, 0, targetW, targetH);
+
+      return offscreen.toDataURL('image/png');
+    } catch (err) {
+      console.warn("Signature compression fallback:", err);
+      return canvas.toDataURL("image/png");
+    }
+  }
+</script>
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useRef, useCallback } = React;
+
+const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const C = {
+  navy: "#1B2A4A", navyL: "#2C3E6B", gold: "#C5961A", goldBg: "#FFF8E7",
+  green: "#27763D", greenBg: "#E8F5EC", red: "#B33025", redBg: "#FDE8E6",
+  paper: "#FAFAF7", paperAlt: "#F4F2EC", ink: "#1E1E1E", inkS: "#5C5C5C",
+  border: "#DDD8CC", borderL: "#ECEAE0", white: "#FFFFFF",
+};
+const GARBAGE = 10;
+
+function pad(n) { return String(n).padStart(2, "0"); }
+function dim(y, m) { return new Date(y, m, 0).getDate(); }
+function dk(y, m, d) { return `${y}-${pad(m)}-${pad(d)}`; }
+function peso(n) { return "\u20B1" + (Number(n) || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+function pesoPdf(n) { return "P" + (Number(n) || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+function slug(n) { return n.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "t"; }
+const CATEGORY_LABELS = { foodtruck: "Food Truck", mobilecart: "Mobile Cart", tent2x2: "Tent 2\u00D72" };
+function categoryLabel(cat) { return CATEGORY_LABELS[cat] || cat; }
+
+function doBackup() {
+  const d = {};
+  for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith("rl:")) d[k] = localStorage.getItem(k); }
+  const b = new Blob([JSON.stringify(d, null, 2)], { type: "application/json" });
+  const a = document.createElement("a"); a.href = URL.createObjectURL(b);
+  a.download = `rent-ledger-backup-${new Date().toISOString().slice(0,10)}.json`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(a.href);
+}
+
+function rowRent(e, s) { if (e.rentAmount != null) return Number(e.rentAmount); if (e.status === 'present') return Number(s.presentFee) || 0; if (e.status === 'absent') return Number(s.absentFee) || 0; return 0; }
+function rowAyka(e, s) { if (e.aykaShare != null) return Number(e.aykaShare) + rowGarb(e); if (e.status === 'present') return (s.presentAykaShare != null ? Number(s.presentAykaShare) : Math.round((Number(s.presentFee) || 0) * 0.7)) + GARBAGE; if (e.status === 'absent') return s.absentAykaShare != null ? Number(s.absentAykaShare) : Math.round((Number(s.absentFee) || 0) * 0.7); return 0; }
+function rowMother(e, s) { if (e.motherShare != null) return Number(e.motherShare); if (e.status === 'present') return s.presentMotherShare != null ? Number(s.presentMotherShare) : ((Number(s.presentFee) || 0) - (s.presentAykaShare != null ? Number(s.presentAykaShare) : Math.round((Number(s.presentFee) || 0) * 0.7))); if (e.status === 'absent') return s.absentMotherShare != null ? Number(s.absentMotherShare) : ((Number(s.absentFee) || 0) - (s.absentAykaShare != null ? Number(s.absentAykaShare) : Math.round((Number(s.absentFee) || 0) * 0.7))); return 0; }
+function rowGarb(e) { return e.status === "present" ? GARBAGE : 0; }
+function rowTot(e, s) { return rowRent(e, s) + rowGarb(e); }
+function rowPaid(e, s) { if (!e.status) return 0; if (e.amountPaid != null) return Number(e.amountPaid); if (e.signature) return rowTot(e, s); return 0; }
+function rowBal(e, s) { if (!e.status) return 0; var tot = rowTot(e, s); var pd = rowPaid(e, s); return Math.max(0, tot - pd); }
+
+function LockScreen({ onUnlock }) {
+  const [pin, setPin] = useState("");
+  const [err, setErr] = useState("");
+  const [setting, setSetting] = useState(false);
+  const [pin2, setPin2] = useState("");
+  const [loaded, setLoaded] = useState(false);
+  const [hasPin, setHasPin] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      try { const r = await window.storage.get("pin"); setHasPin(!!r.value); } catch { setHasPin(false); }
+      setLoaded(true);
+    })();
+  }, []);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!loaded) return;
+    if (!hasPin || setting) {
+      if (pin.length < 4) { setErr("PIN must be at least 4 digits"); return; }
+      if (setting && pin !== pin2) { setErr("PINs do not match"); return; }
+      await window.storage.set("pin", pin);
+      autoBackupToCloud("pin", pin);
+      setHasPin(true); setSetting(false); setPin(""); setPin2(""); setErr("");
+      onUnlock();
+      return;
+    }
+    try {
+      const r = await window.storage.get("pin");
+      if (pin === r.value) { setPin(""); setErr(""); onUnlock(); }
+      else { setErr("Wrong PIN"); setPin(""); }
+    } catch { onUnlock(); }
+  };
+
+  if (!loaded) return <div style={{ minHeight: "100vh", background: C.paper, display: "flex", alignItems: "center", justifyContent: "center" }}><div className="fade-in" style={{ textAlign: "center" }}><div style={{ width: 48, height: 48, border: `3px solid ${C.border}`, borderTopColor: C.navy, borderRadius: "50%", animation: "spin 1s linear infinite", margin: "0 auto 12px" }} /><span style={{ color: C.inkS, fontSize: 14 }}>Loading...</span></div></div>;
+
+  return (
+    <div style={{ minHeight: "100vh", background: `linear-gradient(160deg, ${C.navy} 0%, ${C.navyL} 100%)`, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+      <div style={{ width: 360, maxWidth: "100%", textAlign: "center" }}>
+        <div style={{ width: 64, height: 64, borderRadius: 16, background: "rgba(255,255,255,0.12)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 32, marginBottom: 20, border: "1px solid rgba(255,255,255,0.15)" }}>🔒</div>
+        <div style={{ fontSize: 24, fontWeight: 700, color: "#fff", fontFamily: "'DM Serif Display', Georgia, serif", marginBottom: 6 }}>Banahaw Food Park</div>
+        <div style={{ fontSize: 13, color: "rgba(255,255,255,0.55)", marginBottom: 28 }}>
+          {!hasPin && !setting ? "Create a PIN to secure your ledger" : setting ? "Set up your PIN" : "Enter your PIN to continue"}
+        </div>
+
+        <form onSubmit={submit}>
+          {!hasPin && !setting ? (
+            <button type="button" onClick={() => setSetting(true)}
+              style={{ width: "100%", padding: 14, background: C.gold, color: "#fff", border: "none", borderRadius: 10, fontSize: 15, fontWeight: 600, cursor: "pointer", fontFamily: "Inter, sans-serif" }}>
+              Create PIN
+            </button>
+          ) : (
+            <>
+              <input type="password" inputMode="numeric" maxLength={8} autoFocus placeholder={setting ? "New PIN" : "Enter PIN"} value={pin}
+                onChange={(e) => { setPin(e.target.value.replace(/\D/g, "")); setErr(""); }}
+                style={{ width: "100%", padding: "14px 16px", border: "2px solid rgba(255,255,255,0.2)", borderRadius: 10, fontSize: 22, fontFamily: "'JetBrains Mono', monospace", background: "rgba(255,255,255,0.08)", color: "#fff", textAlign: "center", letterSpacing: 8, marginBottom: 10 }} />
+              {setting && (
+                <input type="password" inputMode="numeric" maxLength={8} placeholder="Confirm PIN" value={pin2}
+                  onChange={(e) => { setPin2(e.target.value.replace(/\D/g, "")); setErr(""); }}
+                  style={{ width: "100%", padding: "14px 16px", border: "2px solid rgba(255,255,255,0.2)", borderRadius: 10, fontSize: 22, fontFamily: "'JetBrains Mono', monospace", background: "rgba(255,255,255,0.08)", color: "#fff", textAlign: "center", letterSpacing: 8, marginBottom: 10 }} />
+              )}
+              {err && <div style={{ fontSize: 13, color: "#F87171", marginBottom: 10, fontWeight: 500 }}>{err}</div>}
+              <button type="submit" style={{ width: "100%", padding: 14, background: "#fff", color: C.navy, border: "none", borderRadius: 10, fontSize: 15, fontWeight: 700, cursor: "pointer", fontFamily: "Inter, sans-serif" }}>
+                {setting ? "Set PIN" : "Unlock"}
+              </button>
+              {setting && hasPin && (
+                <button type="button" onClick={() => { setSetting(false); setPin(""); setPin2(""); setErr(""); }}
+                  style={{ width: "100%", padding: 10, background: "transparent", color: "rgba(255,255,255,0.5)", border: "none", fontSize: 13, cursor: "pointer", marginTop: 8 }}>
+                  Cancel
+                </button>
+              )}
+            </>
+          )}
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function SignaturePad({ initial, onSave, onClose }) {
+  const cv = useRef(null), drw = useRef(false), has = useRef(false);
+  const [empty, setEmpty] = useState(true);
+
+  useEffect(() => {
+    const c = cv.current, ctx = c.getContext("2d");
+    ctx.fillStyle = "#FFF"; ctx.fillRect(0, 0, c.width, c.height);
+    ctx.strokeStyle = C.navy; ctx.lineWidth = 2.5; ctx.lineCap = "round"; ctx.lineJoin = "round";
+    if (initial) {
+      const img = new Image();
+      img.onload = () => { ctx.drawImage(img, 0, 0, c.width, c.height); setEmpty(false); has.current = true; };
+      img.src = initial;
+    }
+  }, [initial]);
+
+  const pos = (e) => {
+    const c = cv.current, r = c.getBoundingClientRect(), sx = c.width / r.width, sy = c.height / r.height;
+    const t = e.touches && e.touches[0];
+    return { x: ((t || e).clientX - r.left) * sx, y: ((t || e).clientY - r.top) * sy };
+  };
+  const down = (e) => { e.preventDefault(); drw.current = true; const { x, y } = pos(e); const ctx = cv.current.getContext("2d"); ctx.beginPath(); ctx.moveTo(x, y); };
+  const move = (e) => { if (!drw.current) return; e.preventDefault(); const { x, y } = pos(e); const ctx = cv.current.getContext("2d"); ctx.lineTo(x, y); ctx.stroke(); has.current = true; setEmpty(false); };
+  const up = () => { drw.current = false; };
+  const clear = () => { const ctx = cv.current.getContext("2d"); ctx.fillStyle = "#FFF"; ctx.fillRect(0, 0, cv.current.width, cv.current.height); has.current = false; setEmpty(true); };
+
+  const handleSave = () => {
+    if (!has.current) return;
+    const compressedDataUrl = compressSignatureCanvas(cv.current);
+    if (!compressedDataUrl) {
+      alert("Please draw a signature before saving.");
+      return;
+    }
+    onSave(compressedDataUrl);
+  };
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100, padding: 16 }} onClick={onClose}>
+      <div style={{ background: "#fff", borderRadius: 14, padding: 24, width: 420, maxWidth: "100%", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }} onClick={(e) => e.stopPropagation()}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+          <span style={{ fontSize: 16, fontWeight: 700, color: C.ink }}>Draw Signature</span>
+          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: C.inkS, fontSize: 22 }}>×</button>
+        </div>
+        <canvas ref={cv} width={380} height={150}
+          style={{ width: "100%", height: 150, border: `2px solid ${C.border}`, borderRadius: 8, background: "#fff", touchAction: "none", cursor: "crosshair" }}
+          onMouseDown={down} onMouseMove={move} onMouseUp={up} onMouseLeave={up}
+          onTouchStart={down} onTouchMove={move} onTouchEnd={up} />
+        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 12 }}>
+          <button onClick={clear} style={{ padding: "8px 16px", background: "transparent", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 13, fontWeight: 500, color: C.inkS, cursor: "pointer" }}>Clear</button>
+          <button onClick={handleSave}
+            disabled={empty} style={{ padding: "8px 20px", background: empty ? C.border : C.navy, color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: empty ? "not-allowed" : "pointer" }}>Save</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TenantModal({ tenant, category, onSave, onClose }) {
+  const isEdit = !!tenant;
+  const [name, setName] = useState(tenant ? tenant.name : "");
+  const [pf, setPf] = useState(tenant ? String(tenant.presentFee) : "");
+  const [pmf, setPmf] = useState(tenant ? String(tenant.presentMotherShare != null ? tenant.presentMotherShare : ((Number(tenant.presentFee)||0) - (tenant.presentAykaShare != null ? tenant.presentAykaShare : Math.round((Number(tenant.presentFee)||0)*0.7)))) : "");
+  const [paf, setPaf] = useState(tenant ? String(tenant.presentAykaShare != null ? tenant.presentAykaShare : Math.round((Number(tenant.presentFee)||0)*0.7)) : "");
+  const [af, setAf] = useState(tenant ? String(tenant.absentFee) : "");
+  const [amf, setAmf] = useState(tenant ? String(tenant.absentMotherShare != null ? tenant.absentMotherShare : ((Number(tenant.absentFee)||0) - (tenant.absentAykaShare != null ? tenant.absentAykaShare : Math.round((Number(tenant.absentFee)||0)*0.7)))) : "");
+  const [aaf, setAaf] = useState(tenant ? String(tenant.absentAykaShare != null ? tenant.absentAykaShare : Math.round((Number(tenant.absentFee)||0)*0.7)) : "");
+  const [ownerName, setOwnerName] = useState(tenant ? (tenant.ownerName || "") : "");
+  const [ownerPhone, setOwnerPhone] = useState(tenant ? (tenant.ownerPhone || "") : "");
+  const [startDate, setStartDate] = useState(tenant ? (tenant.startDate || "") : "");
+  const [err, setErr] = useState("");
+
+  const handlePfChange = (val) => {
+    setPf(val);
+    setErr("");
+    const num = Number(val) || 0;
+    if (num > 0 && (!tenant || tenant.presentAykaShare == null)) {
+      const ayka = Math.round(num * 0.7);
+      setPaf(String(ayka));
+      setPmf(String(num - ayka));
+    }
+  };
+
+  const handleAfChange = (val) => {
+    setAf(val);
+    setErr("");
+    const num = Number(val) || 0;
+    if (num > 0 && (!tenant || tenant.absentAykaShare == null)) {
+      const ayka = Math.round(num * 0.7);
+      setAaf(String(ayka));
+      setAmf(String(num - ayka));
+    }
+  };
+
+  const submit = (e) => {
+    e.preventDefault();
+    if (!name.trim()) { setErr("Enter business name."); return; }
+    if (!pf || Number(pf) < 0) { setErr("Enter valid present fee."); return; }
+    if (!af || Number(af) < 0) { setErr("Enter valid absent fee."); return; }
+    onSave({
+      id: tenant ? tenant.id : `${slug(name)}-${Date.now()}`,
+      name: name.trim(),
+      presentFee: Number(pf),
+      presentMotherShare: Number(pmf) || 0,
+      presentAykaShare: Number(paf) || 0,
+      absentFee: Number(af),
+      absentMotherShare: Number(amf) || 0,
+      absentAykaShare: Number(aaf) || 0,
+      category: tenant ? tenant.category : category,
+      ownerName: ownerName.trim(),
+      ownerPhone: ownerPhone.trim(),
+      startDate: startDate,
+    });
+  };
+
+  const pSum = (Number(pmf) || 0) + (Number(paf) || 0);
+  const pTot = Number(pf) || 0;
+  const pDiff = pSum !== pTot;
+
+  const aSum = (Number(amf) || 0) + (Number(aaf) || 0);
+  const aTot = Number(af) || 0;
+  const aDiff = aSum !== aTot;
+
+  return (
+    <div className="modal-backdrop" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 90, padding: 16 }} onClick={onClose}>
+      <div className="modal-content" style={{ background: "#fff", borderRadius: 14, padding: 24, width: 480, maxWidth: "100%", boxShadow: "0 20px 60px rgba(0,0,0,0.25)", maxHeight: "90vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+          <div style={{ fontSize: 18, fontWeight: 700, color: C.ink }}>{isEdit ? "Edit Tenant & Rent Rates" : "Add New Tenant"}</div>
+          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: C.inkS, fontSize: 22 }}>×</button>
+        </div>
+        <form onSubmit={submit}>
+          <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: C.inkS, marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.8 }}>Business Name</label>
+          <input value={name} onChange={(e) => { setName(e.target.value); setErr(""); }} placeholder="e.g. Kamchies Mixed Fruits"
+            style={{ width: "100%", padding: "10px 12px", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 14, marginBottom: 14 }} />
+
+          <div style={{ marginBottom: 14, padding: 12, border: `1px solid ${pDiff ? '#F5C6C2' : C.borderL}`, borderRadius: 10, background: pDiff ? '#FFF5F5' : C.paper }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: C.green, marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.8 }}>
+              Daily Rent Breakdown — PRESENT (₱)
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+              <div>
+                <label style={{ fontSize: 10, fontWeight: 600, color: C.inkS, display: "block", marginBottom: 3 }}>Total Rent</label>
+                <input type="number" min="0" value={pf} onChange={(e) => handlePfChange(e.target.value)} placeholder="e.g. 350"
+                  style={{ width: "100%", padding: "8px 10px", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 13, fontWeight: 600 }} />
+              </div>
+              <div>
+                <label style={{ fontSize: 10, fontWeight: 600, color: C.gold, display: "block", marginBottom: 3 }}>Ate Ayka Share</label>
+                <input type="number" min="0" value={paf} onChange={(e) => { setPaf(e.target.value); setErr(""); }} placeholder="e.g. 300"
+                  style={{ width: "100%", padding: "8px 10px", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 13 }} />
+              </div>
+              <div>
+                <label style={{ fontSize: 10, fontWeight: 600, color: C.navy, display: "block", marginBottom: 3 }}>Mother Share</label>
+                <input type="number" min="0" value={pmf} onChange={(e) => { setPmf(e.target.value); setErr(""); }} placeholder="e.g. 50"
+                  style={{ width: "100%", padding: "8px 10px", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 13 }} />
+              </div>
+            </div>
+            {pDiff && pf !== "" && (
+              <div style={{ fontSize: 11, color: C.red, marginTop: 6, fontWeight: 500 }}>
+                ⚠️ Ate Ayka ({paf || 0}) + Mother ({pmf || 0}) = {pSum}, di tugma sa Total Rent ({pTot}).
+              </div>
+            )}
+          </div>
+
+          <div style={{ marginBottom: 14, padding: 12, border: `1px solid ${aDiff ? '#F5C6C2' : C.borderL}`, borderRadius: 10, background: aDiff ? '#FFF5F5' : C.paper }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: C.navy, marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.8 }}>
+              Daily Rent Breakdown — ABSENT (₱)
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+              <div>
+                <label style={{ fontSize: 10, fontWeight: 600, color: C.inkS, display: "block", marginBottom: 3 }}>Total Rent</label>
+                <input type="number" min="0" value={af} onChange={(e) => handleAfChange(e.target.value)} placeholder="e.g. 200"
+                  style={{ width: "100%", padding: "8px 10px", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 13, fontWeight: 600 }} />
+              </div>
+              <div>
+                <label style={{ fontSize: 10, fontWeight: 600, color: C.gold, display: "block", marginBottom: 3 }}>Ate Ayka Share</label>
+                <input type="number" min="0" value={aaf} onChange={(e) => { setAaf(e.target.value); setErr(""); }} placeholder="e.g. 60"
+                  style={{ width: "100%", padding: "8px 10px", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 13 }} />
+              </div>
+              <div>
+                <label style={{ fontSize: 10, fontWeight: 600, color: C.navy, display: "block", marginBottom: 3 }}>Mother Share</label>
+                <input type="number" min="0" value={amf} onChange={(e) => { setAmf(e.target.value); setErr(""); }} placeholder="e.g. 140"
+                  style={{ width: "100%", padding: "8px 10px", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 13 }} />
+              </div>
+            </div>
+            {aDiff && af !== "" && (
+              <div style={{ fontSize: 11, color: C.red, marginTop: 6, fontWeight: 500 }}>
+                ⚠️ Ate Ayka ({aaf || 0}) + Mother ({amf || 0}) = {aSum}, di tugma sa Total Rent ({aTot}).
+              </div>
+            )}
+          </div>
+
+          <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: C.inkS, marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.8 }}>Owner Name</label>
+          <input value={ownerName} onChange={(e) => setName(e.target.value)} placeholder="e.g. Juan Dela Cruz"
+            style={{ width: "100%", padding: "10px 12px", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 13, marginBottom: 12 }} />
+          
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+            <div>
+              <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: C.inkS, marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.8 }}>Owner Phone</label>
+              <input value={ownerPhone} onChange={(e) => setOwnerPhone(e.target.value)} placeholder="09xxxxxxxxx"
+                style={{ width: "100%", padding: "10px 12px", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 13 }} />
+            </div>
+            <div>
+              <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: C.inkS, marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.8 }}>Start Date</label>
+              <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)}
+                style={{ width: "100%", padding: "10px 12px", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 13 }} />
+            </div>
+          </div>
+
+          {err && <div style={{ fontSize: 13, color: C.navy, marginBottom: 10, fontWeight: 500 }}>{err}</div>}
+          <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
+            <button type="button" onClick={onClose} style={{ flex: 1, padding: "11px 14px", background: "transparent", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 14, fontWeight: 500, color: C.inkS, cursor: "pointer" }}>Cancel</button>
+            <button type="submit" style={{ flex: 1, padding: "11px 14px", background: C.navy, color: "#fff", border: "none", borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>{isEdit ? "Save Changes" : "Add Tenant"}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function TenantListScreen({ tenants, category, onOpen, onAdd, onEdit, onBack, onDelete, onLock, onCategoryReport, onAmbagan, onUnpaidTenants }) {
+  const cat = category;
+  const allList = tenants.filter((t) => t.category === cat);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [search, setSearch] = useState("");
+  const [sortBy, setSortBy] = useState("name");
+
+  const list = allList
+    .filter((t) => !search.trim() || t.name.toLowerCase().includes(search.toLowerCase().trim()))
+    .sort((a, b) => sortBy === "fee" ? b.presentFee - a.presentFee : a.name.localeCompare(b.name));
+
+  return (
+    <div style={{ minHeight: "100vh", background: C.paper }}>
+      <div style={{ background: `linear-gradient(135deg, ${C.navy} 0%, ${C.navyL} 100%)`, color: "#fff", padding: "24px 20px" }}>
+        <div style={{ maxWidth: 960, margin: "0 auto" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+            <button onClick={onBack} className="btn-hover" style={{ background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.18)", borderRadius: 8, padding: "6px 12px", color: "#fff", fontSize: 13, cursor: "pointer" }}>← Categories</button>
+            <button onClick={onLock} style={{ background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.18)", borderRadius: 8, padding: "6px 12px", color: "#fff", fontSize: 13, cursor: "pointer" }}>🔒 Lock</button>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 12 }}>
+            <span style={{ fontSize: 32 }}>{cat === "foodtruck" ? "🚚" : cat === "mobilecart" ? "🛒" : "⛺"}</span>
+            <div>
+              <div style={{ fontSize: 22, fontWeight: 700, fontFamily: "'DM Serif Display', Georgia, serif" }}>
+                {cat === "foodtruck" ? "Food Trucks" : cat === "mobilecart" ? "Mobile Carts" : "Tent 2×2 Spaces"}
+              </div>
+              <div style={{ fontSize: 12, opacity: 0.65, marginTop: 2 }}>{allList.length} tenant{allList.length !== 1 ? "s" : ""} registered</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ maxWidth: 960, margin: "0 auto", padding: "20px" }}>
+        <button onClick={() => onAdd(cat)} className="fade-in btn-hover" style={{ width: "100%", padding: "14px 20px", background: "#fff", border: `2px dashed ${C.border}`, borderRadius: 12, fontSize: 14, fontWeight: 600, color: C.navy, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 16 }}>
+          <span style={{ fontSize: 20, fontWeight: 400, transition: "transform 0.2s" }}>+</span> Add New Tenant
+        </button>
+
+        <div className="fade-in" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 16 }}>
+          <button onClick={() => onCategoryReport(cat)} className="btn-hover" style={{ padding: "12px 10px", background: C.navy, color: "#fff", border: "none", borderRadius: 10, fontSize: 12, fontWeight: 600, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+            <span style={{ fontSize: 20 }}>📊</span>
+            <span>Category Report</span>
+          </button>
+          <button onClick={() => onAmbagan(cat)} className="btn-hover" style={{ padding: "12px 10px", background: C.gold, color: "#fff", border: "none", borderRadius: 10, fontSize: 12, fontWeight: 600, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+            <span style={{ fontSize: 20 }}>📄</span>
+            <span>Ambagan</span>
+          </button>
+          <button onClick={() => onUnpaidTenants(cat)} className="btn-hover" style={{ padding: "12px 10px", background: C.red, color: "#fff", border: "none", borderRadius: 10, fontSize: 12, fontWeight: 600, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+            <span style={{ fontSize: 20 }}>⚠️</span>
+            <span>Unpaid List</span>
+          </button>
+        </div>
+
+        {allList.length > 0 && (
+          <div className="fade-in" style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
+            <div style={{ flex: 1, minWidth: 200, position: "relative" }}>
+              <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", fontSize: 14, color: C.inkS, pointerEvents: "none" }}>🔍</span>
+              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search tenants..."
+                className="input-glow"
+                style={{ width: "100%", padding: "10px 36px 10px 36px", border: `1px solid ${C.border}`, borderRadius: 10, fontSize: 13, background: "#fff", color: C.ink }} />
+              {search && (
+                <button onClick={() => setSearch("")} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", fontSize: 16, color: C.inkS, cursor: "pointer" }}>×</button>
+              )}
+            </div>
+            <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="input-glow"
+              style={{ padding: "10px 14px", border: `1px solid ${C.border}`, borderRadius: 10, fontSize: 13, background: "#fff", color: C.ink, cursor: "pointer" }}>
+              <option value="name">Sort by Name</option>
+              <option value="fee">Sort by Fee</option>
+            </select>
+          </div>
+        )}
+
+        {search.trim() && list.length === 0 && allList.length > 0 && (
+          <div style={{ textAlign: "center", padding: "32px 20px", color: C.inkS }}>
+            <div style={{ fontSize: 36, marginBottom: 10 }}>🔍</div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: C.ink, marginBottom: 4 }}>No tenants found</div>
+            <div style={{ fontSize: 12 }}>No results for "{search}"</div>
+          </div>
+        )}
+
+        {allList.length === 0 ? (
+          <div style={{ textAlign: "center", padding: "48px 20px", color: C.inkS }}>
+            <div style={{ fontSize: 48, marginBottom: 12 }}>🏪</div>
+            <div style={{ fontSize: 16, fontWeight: 600, color: C.ink, marginBottom: 6 }}>No tenants yet</div>
+            <div style={{ fontSize: 13 }}>Tap "Add New Tenant" to get started.</div>
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {list.map((t, idx) => (
+              <div key={t.id} className="fade-in hover-lift card-shine" style={{ background: "#fff", border: `1px solid ${C.borderL}`, borderRadius: 12, padding: "18px 20px", display: "flex", alignItems: "center", gap: 14, cursor: "pointer", boxShadow: "0 1px 3px rgba(0,0,0,0.04)", animationDelay: `${idx * 0.05}s` }}
+                onClick={() => onOpen(t)}>
+                <div style={{ width: 44, height: 44, borderRadius: 12, background: C.goldBg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, flexShrink: 0 }}>🏪</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 16, fontWeight: 600, color: C.ink }}>{t.name}</div>
+                  <div style={{ fontSize: 12, color: C.inkS, marginTop: 3 }}>
+                    Present {peso(t.presentFee)} · Absent {peso(t.absentFee)} · Garbage {peso(GARBAGE)}
+                  </div>
+                  {t.ownerName && <div style={{ fontSize: 11, color: C.inkS, marginTop: 2 }}>👤 {t.ownerName}{t.ownerPhone ? ` · ${t.ownerPhone}` : ''}</div>}
+                  {t.startDate && <div style={{ fontSize: 10, color: C.gold, marginTop: 1 }}>Started: {t.startDate}</div>}
+                </div>
+                <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                  <button onClick={(e) => { e.stopPropagation(); onEdit(t); }}
+                    style={{ padding: "7px 12px", background: "transparent", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, fontWeight: 500, color: C.inkS, cursor: "pointer" }}>✏️ Edit</button>
+                  <button onClick={(e) => { e.stopPropagation(); setDeleteTarget(t); }}
+                    style={{ padding: "7px 12px", background: "transparent", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, color: C.navy, cursor: "pointer" }}>🗑️</button>
+                </div>
+                <div style={{ fontSize: 18, color: C.borderL, flexShrink: 0 }}>›</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      {deleteTarget && (
+        <DeleteTenantModal
+          tenant={deleteTarget}
+          onConfirm={() => { onDelete(deleteTarget.id); setDeleteTarget(null); }}
+          onClose={() => setDeleteTarget(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+function DeleteTenantModal({ tenant, onConfirm, onClose }) {
+  const [typed, setTyped] = useState("");
+  const matches = typed.trim().toLowerCase() === tenant.name.trim().toLowerCase();
+
+  return (
+    <div className="modal-backdrop" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 95, padding: 16 }} onClick={onClose}>
+      <div className="modal-content" style={{ background: "#fff", borderRadius: 14, padding: 28, width: 420, maxWidth: "100%", boxShadow: "0 20px 60px rgba(0,0,0,0.25)" }} onClick={(e) => e.stopPropagation()}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+          <div style={{ fontSize: 18, fontWeight: 700, color: C.ink }}>Delete Tenant?</div>
+          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: C.inkS, fontSize: 22 }}>×</button>
+        </div>
+        <div style={{ fontSize: 13, color: C.inkS, marginBottom: 16, lineHeight: 1.5 }}>
+          This permanently deletes <b style={{ color: C.ink }}>{tenant.name}</b> and cannot be undone locally.
+          To confirm, type the tenant's name exactly as shown below.
+        </div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: C.navy, marginBottom: 8, padding: "8px 12px", background: C.paper, borderRadius: 8, border: `1px solid ${C.border}` }}>{tenant.name}</div>
+        <input
+          value={typed}
+          onChange={(e) => setTyped(e.target.value)}
+          placeholder="Type tenant name to confirm"
+          autoFocus
+          style={{ width: "100%", padding: "11px 14px", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 14, marginBottom: 16 }}
+        />
+        <div style={{ display: "flex", gap: 10 }}>
+          <button type="button" onClick={onClose} style={{ flex: 1, padding: "11px 14px", background: "transparent", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 14, fontWeight: 500, color: C.inkS, cursor: "pointer" }}>Cancel</button>
+          <button
+            type="button"
+            disabled={!matches}
+            onClick={onConfirm}
+            style={{ flex: 1, padding: "11px 14px", background: matches ? "#B3261E" : C.borderL, color: "#fff", border: "none", borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: matches ? "pointer" : "not-allowed" }}
+          >
+            Delete Tenant
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DayDetailsModal({ day, dateStr, tenant, entry, onSave, onClose }) {
+  const [status, setStatus] = useState(entry.status || null);
+  const [rent, setRent] = useState(String(entry.rentAmount != null ? entry.rentAmount : (status === "present" ? tenant.presentFee : (status === "absent" ? tenant.absentFee : ""))));
+  const [ayka, setAyka] = useState(String(entry.aykaShare != null ? entry.aykaShare : (status === "present" ? (tenant.presentAykaShare != null ? tenant.presentAykaShare : Math.round((Number(tenant.presentFee)||0)*0.7)) : (status === "absent" ? (tenant.absentAykaShare != null ? tenant.absentAykaShare : Math.round((Number(tenant.absentFee)||0)*0.7)) : ""))));
+  const [mother, setMother] = useState(String(entry.motherShare != null ? entry.motherShare : (status === "present" ? (tenant.presentMotherShare != null ? tenant.presentMotherShare : ((Number(tenant.presentFee)||0)-Number(ayka))) : (status === "absent" ? (tenant.absentMotherShare != null ? tenant.absentMotherShare : ((Number(tenant.absentFee)||0)-Number(ayka))) : ""))));
+  const defaultPaid = entry.amountPaid != null ? String(entry.amountPaid) : (entry.signature ? String((Number(rent)||0) + (status === "present" ? GARBAGE : 0)) : "");
+  const [amountPaid, setAmountPaid] = useState(defaultPaid);
+  const [coveredDate, setCoveredDate] = useState(entry.coveredDate || dateStr);
+  const [datePaid, setDatePaid] = useState(entry.datePaid || new Date().toISOString().slice(0, 10));
+  const [remarks, setRemarks] = useState(entry.remarks || "");
+
+  const handleStatusSelect = (st) => {
+    setStatus(st);
+    if (st === "present") {
+      const r = tenant.presentFee;
+      const a = tenant.presentAykaShare != null ? tenant.presentAykaShare : Math.round(r * 0.7);
+      const m = tenant.presentMotherShare != null ? tenant.presentMotherShare : (r - a);
+      setRent(String(r)); setAyka(String(a)); setMother(String(m));
+      if (!amountPaid) setAmountPaid(String(r + GARBAGE));
+    } else if (st === "absent") {
+      const r = tenant.absentFee;
+      const a = tenant.absentAykaShare != null ? tenant.absentAykaShare : Math.round(r * 0.7);
+      const m = tenant.absentMotherShare != null ? tenant.absentMotherShare : (r - a);
+      setRent(String(r)); setAyka(String(a)); setMother(String(m));
+      if (!amountPaid) setAmountPaid(String(r));
+    } else {
+      setRent(""); setMother(""); setAyka(""); setAmountPaid("");
+    }
+  };
+
+  const currentTotal = (Number(rent) || 0) + (status === "present" ? GARBAGE : 0);
+  const currentPaid = amountPaid !== "" ? Number(amountPaid) : (entry.signature ? currentTotal : 0);
+  const currentBal = Math.max(0, currentTotal - currentPaid);
+
+  const submit = (e) => {
+    e.preventDefault();
+    onSave({
+      status: status,
+      rentAmount: rent !== "" ? Number(rent) : undefined,
+      motherShare: mother !== "" ? Number(mother) : undefined,
+      aykaShare: ayka !== "" ? Number(ayka) : undefined,
+      amountPaid: amountPaid !== "" ? Number(amountPaid) : undefined,
+      coveredDate: coveredDate,
+      datePaid: datePaid,
+      remarks: remarks.trim()
+    });
+  };
+
+  return (
+    <div className="modal-backdrop" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 95, padding: 16 }} onClick={onClose}>
+      <div className="modal-content" style={{ background: "#fff", borderRadius: 14, padding: 24, width: 440, maxWidth: "100%", boxShadow: "0 20px 60px rgba(0,0,0,0.25)" }} onClick={(e) => e.stopPropagation()}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+          <div style={{ fontSize: 17, fontWeight: 700, color: C.ink }}>Edit Entry — Day {day} ({dateStr})</div>
+          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: C.inkS, fontSize: 22 }}>×</button>
+        </div>
+        <form onSubmit={submit}>
+          <div style={{ marginBottom: 14 }}>
+            <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: C.inkS, marginBottom: 6, textTransform: "uppercase" }}>Attendance Status</label>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+              <button type="button" onClick={() => handleStatusSelect("present")}
+                style={{ padding: "8px", borderRadius: 8, fontSize: 12, fontWeight: 600, border: `1.5px solid ${C.green}`, color: status === "present" ? "#fff" : C.green, background: status === "present" ? C.green : "transparent", cursor: "pointer" }}>✓ Present</button>
+              <button type="button" onClick={() => handleStatusSelect("absent")}
+                style={{ padding: "8px", borderRadius: 8, fontSize: 12, fontWeight: 600, border: `1.5px solid ${C.navy}`, color: status === "absent" ? "#fff" : C.navy, background: status === "absent" ? C.navy : "transparent", cursor: "pointer" }}>✕ Absent</button>
+              <button type="button" onClick={() => handleStatusSelect(null)}
+                style={{ padding: "8px", borderRadius: 8, fontSize: 12, fontWeight: 500, border: `1px solid ${C.border}`, color: C.inkS, background: "transparent", cursor: "pointer" }}>Clear</button>
+            </div>
+          </div>
+
+          <div style={{ padding: 12, border: `1px solid ${C.borderL}`, borderRadius: 10, background: C.paper, marginBottom: 14 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: C.navy, textTransform: "uppercase" }}>Rent Payment Breakdown (₱)</div>
+              <button type="button" onClick={() => handleStatusSelect(status || "present")} style={{ fontSize: 10, color: C.gold, background: "none", border: "none", cursor: "pointer", textDecoration: "underline", fontWeight: 600 }}>🔄 Reset to Tenant Rates</button>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 10 }}>
+              <div>
+                <label style={{ fontSize: 10, fontWeight: 600, color: C.inkS, display: "block", marginBottom: 3 }}>Total Rent</label>
+                <input type="number" min="0" value={rent} onChange={(e) => setRent(e.target.value)} placeholder="0"
+                  style={{ width: "100%", padding: "7px 8px", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 13, fontWeight: 600 }} />
+              </div>
+              <div>
+                <label style={{ fontSize: 10, fontWeight: 600, color: C.gold, display: "block", marginBottom: 3 }}>Ate Ayka Share</label>
+                <input type="number" min="0" value={ayka} onChange={(e) => setAyka(e.target.value)} placeholder="0"
+                  style={{ width: "100%", padding: "7px 8px", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 13 }} />
+              </div>
+              <div>
+                <label style={{ fontSize: 10, fontWeight: 600, color: C.navy, display: "block", marginBottom: 3 }}>Mother Share</label>
+                <input type="number" min="0" value={mother} onChange={(e) => setMother(e.target.value)} placeholder="0"
+                  style={{ width: "100%", padding: "7px 8px", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 13 }} />
+              </div>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, paddingTop: 8, borderTop: `1px dashed ${C.border}` }}>
+              <div>
+                <label style={{ fontSize: 10, fontWeight: 700, color: C.green, display: "block", marginBottom: 3 }}>Amount Paid (Naibayad)</label>
+                <input type="number" min="0" value={amountPaid} onChange={(e) => setAmountPaid(e.target.value)} placeholder={`e.g. ${currentTotal}`}
+                  style={{ width: "100%", padding: "7px 8px", border: `1px solid ${C.green}`, borderRadius: 6, fontSize: 13, fontWeight: 700, color: C.green }} />
+              </div>
+              <div>
+                <label style={{ fontSize: 10, fontWeight: 700, color: currentBal > 0 ? C.red : C.inkS, display: "block", marginBottom: 3 }}>Remaining Balance</label>
+                <div style={{ padding: "7px 8px", background: currentBal > 0 ? C.redBg : "#fff", border: `1px solid ${currentBal > 0 ? C.red : C.border}`, borderRadius: 6, fontSize: 13, fontWeight: 700, color: currentBal > 0 ? C.red : C.navy }}>
+                  ₱{currentBal.toFixed(2)}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+            <div>
+              <label style={{ display: "block", fontSize: 10, fontWeight: 700, color: C.inkS, marginBottom: 3, textTransform: "uppercase" }}>Covered Date</label>
+              <input type="date" value={coveredDate} onChange={(e) => setCoveredDate(e.target.value)}
+                style={{ width: "100%", padding: "8px 10px", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 12 }} />
+            </div>
+            <div>
+              <label style={{ display: "block", fontSize: 10, fontWeight: 700, color: C.inkS, marginBottom: 3, textTransform: "uppercase" }}>Date Paid</label>
+              <input type="date" value={datePaid} onChange={(e) => setDatePaid(e.target.value)}
+                style={{ width: "100%", padding: "8px 10px", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 12 }} />
+            </div>
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ display: "block", fontSize: 10, fontWeight: 700, color: C.inkS, marginBottom: 3, textTransform: "uppercase" }}>Remarks / Notes</label>
+            <input value={remarks} onChange={(e) => setRemarks(e.target.value)} placeholder="e.g. Paid Oct 1 via GCash"
+              style={{ width: "100%", padding: "8px 10px", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 13 }} />
+          </div>
+
+          <div style={{ display: "flex", gap: 10 }}>
+            <button type="button" onClick={onClose} style={{ flex: 1, padding: "10px", background: "transparent", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 13, color: C.inkS, cursor: "pointer" }}>Cancel</button>
+            <button type="submit" style={{ flex: 1, padding: "10px", background: C.navy, color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Save Details</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function Ledger({ tenant, onBack, onCustomerView }) {
+  const today = new Date();
+  const [year, setYear] = useState(today.getFullYear());
+  const [month, setMonth] = useState(today.getMonth() + 1);
+  const [entries, setEntries] = useState({});
+  const [signingDate, setSigningDate] = useState(null);
+  const [loaded, setLoaded] = useState(false);
+  const [saveNote, setSaveNote] = useState("");
+  const saveTimer = useRef(null);
+  const [useRange, setUseRange] = useState(false);
+  const [rangeStart, setRangeStart] = useState(1);
+  const [rangeEnd, setRangeEnd] = useState(dim(today.getFullYear(), today.getMonth() + 1));
+  const [prevMonthData, setPrevMonthData] = useState(null);
+
+  const storeKey = `entries:${tenant.category}:${tenant.id}:${year}-${pad(month)}`;
+
+  const loadMonth = useCallback(async () => {
+    setLoaded(false);
+    let localData = {};
+    try { const r = await window.storage.get(storeKey); if (r && r.value) localData = JSON.parse(r.value); } catch {}
+    setEntries(localData);
+    setLoaded(true);
+
+
+    let pm = month - 1, py = year;
+    if (pm < 1) { pm = 12; py--; }
+    const prevKey = `entries:${tenant.category}:${tenant.id}:${py}-${pad(pm)}`;
+    try {
+      let prevEntries = {};
+      const pr = await window.storage.get(prevKey).catch(() => null);
+      if (pr && pr.value) prevEntries = JSON.parse(pr.value);
+      if (!Object.keys(prevEntries).length) {
+        const remotePrev = await fetchKeyFromCloud(prevKey);
+        if (remotePrev) { prevEntries = remotePrev; window.storage.set(prevKey, JSON.stringify(remotePrev)).catch(() => {}); }
+      }
+      if (Object.keys(prevEntries).length) {
+        const prevDays = dim(py, pm);
+        let pTotal = 0, pPresent = 0, pAbsent = 0, pGarb = 0;
+        for (let d = 1; d <= prevDays; d++) {
+          const e = prevEntries[dk(py, pm, d)] || { status: null };
+          const rent = rowRent(e, tenant), garb = rowGarb(e);
+          pTotal += rent + garb;
+          if (e.status === 'present') pPresent++;
+          else if (e.status === 'absent') pAbsent++;
+          pGarb += garb;
+        }
+        setPrevMonthData({ total: pTotal, present: pPresent, absent: pAbsent, garbage: pGarb, days: prevDays, month: MONTHS[pm - 1] });
+      } else setPrevMonthData(null);
+    } catch { setPrevMonthData(null); }
+  }, [storeKey, month, year, tenant]);
+
+  useEffect(() => { loadMonth(); }, [loadMonth]);
+
+  useEffect(() => {
+    // True Firebase realtime listener: other devices update this ledger automatically.
+    const unsubscribe = window.subscribeKeyFromCloud(storeKey, (remoteData) => {
+      if (remoteData) {
+        setEntries(remoteData);
+        window.storage.set(storeKey, JSON.stringify(remoteData)).catch(() => {});
+        setCloudStatus("synced", "Database updated ✓");
+      }
+    });
+    return () => unsubscribe();
+  }, [storeKey]);
+
+  const flash = (msg) => { setSaveNote(msg || "Saved ✓"); clearTimeout(saveTimer.current); saveTimer.current = setTimeout(() => setSaveNote(""), 1400); };
+  
+  const persist = async (next, changedDay, cloudPatch) => {
+    setEntries(next);
+    const jsonVal = JSON.stringify(next);
+    try { await window.storage.set(storeKey, jsonVal); } catch (err) { console.warn("Local cache error:", err); }
+    flash("Saved ✓");
+    if (changedDay && typeof window.syncEntryDay === "function") {
+      const mutationTime = new Date().toISOString();
+      window.syncEntryDay(tenant.category, tenant.id, `${year}-${pad(month)}`, changedDay, cloudPatch || next[changedDay] || {}, mutationTime)
+        .then(ok => setCloudStatus(ok ? "synced" : "offline", ok ? "Database Synced ✓" : "Offline — changes will sync automatically"));
+    } else {
+      autoBackupToCloud(storeKey, jsonVal);
+    }
+  };
+
+  const getEntry = (d) => entries[dk(year, month, d)] || { status: null, signature: null };
+  const dayLabel = (d) => new Date(year, month - 1, d).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" });
+  const [editingDay, setEditingDay] = useState(null);
+  
+  const updateEntry = (d, patch) => {
+    const k = dk(year, month, d);
+    const existing = getEntry(d);
+    if ("status" in patch && patch.status) {
+      const p = patch.status === "present";
+      patch.rentAmount = p ? tenant.presentFee : tenant.absentFee;
+      patch.aykaShare = p
+        ? (tenant.presentAykaShare != null ? tenant.presentAykaShare : Math.round((Number(tenant.presentFee)||0)*0.7))
+        : (tenant.absentAykaShare != null ? tenant.absentAykaShare : Math.round((Number(tenant.absentFee)||0)*0.7));
+      patch.motherShare = p
+        ? (tenant.presentMotherShare != null ? tenant.presentMotherShare : ((Number(tenant.presentFee)||0) - patch.aykaShare))
+        : (tenant.absentMotherShare != null ? tenant.absentMotherShare : ((Number(tenant.absentFee)||0) - patch.aykaShare));
+    }
+    if ("status" in patch && !patch.status) {
+      patch.rentAmount = undefined;
+      patch.motherShare = undefined;
+      patch.aykaShare = undefined;
+    }
+    persist({ ...entries, [k]: { ...existing, ...patch } }, k, patch);
+    if ("status" in patch) {
+      const action = patch.status === "present" ? "Marked Present" : patch.status === "absent" ? "Marked Absent" : "Cleared status";
+      window.logActivity(action, `${tenant.name} — ${dayLabel(d)}`);
+    }
+    if ("signature" in patch) {
+      window.logActivity(patch.signature ? "Signature saved" : "Signature cleared", `${tenant.name} — ${dayLabel(d)}`);
+    }
+  };
+
+  const guardedUpdate = (d, patch) => {
+    if (getEntry(d).signature) {
+      if (!window.confirm("This day already has a signature on file. Changing it now will alter a signed record. Continue?")) return;
+    }
+    updateEntry(d, patch);
+  };
+  const changeMonth = (delta) => { let m = month + delta, y = year; if (m > 12) { m = 1; y++; } else if (m < 1) { m = 12; y--; } setMonth(m); setYear(y); setRangeStart(1); setRangeEnd(dim(y, m)); };
+
+  const numDays = dim(year, month);
+  const days = Array.from({ length: numDays }, (_, i) => i + 1);
+  
+  let totalDue = 0, presentC = 0, absentC = 0, signedC = 0;
+  let totalRentSum = 0, totalMotherSum = 0, totalAykaSum = 0, totalGarbSum = 0, totalPaidSum = 0, totalBalSum = 0;
+  days.forEach((d) => {
+    const e = getEntry(d);
+    const rent = rowRent(e, tenant);
+    const mother = rowMother(e, tenant);
+    const ayka = rowAyka(e, tenant);
+    const garb = rowGarb(e);
+    const pd = rowPaid(e, tenant);
+    const bl = rowBal(e, tenant);
+    if (e.signature) { totalDue += rowTot(e, tenant); }
+    if (e.status === "present" || e.status === "absent") {
+      if (e.status === "present") presentC++; else absentC++;
+      totalRentSum += rent;
+      totalMotherSum += mother;
+      totalAykaSum += ayka;
+      totalPaidSum += pd;
+      totalBalSum += bl;
+    }
+    totalGarbSum += garb;
+    if (e.signature) signedC++;
+  });
+
+  const rangeDays = days.filter((d) => d >= rangeStart && d <= rangeEnd);
+  let rangeTotal = 0, rangePresentC = 0, rangeAbsentC = 0;
+  let rangeRentSum = 0, rangeMotherSum = 0, rangeAykaSum = 0, rangeGarbSum = 0;
+  rangeDays.forEach((d) => {
+    const e = getEntry(d);
+    const rent = rowRent(e, tenant), mother = rowMother(e, tenant), ayka = rowAyka(e, tenant), garb = rowGarb(e);
+    if (e.signature) { rangeTotal += rowTot(e, tenant); }
+    if (e.status === "present" || e.status === "absent") {
+      if (e.status === "present") rangePresentC++; else rangeAbsentC++;
+      rangeRentSum += rent;
+      rangeMotherSum += mother;
+      rangeAykaSum += ayka;
+    }
+    rangeGarbSum += garb;
+  });
+
+  const downloadPdf = () => {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    const pw = 210, ph = 297, ml = 14, mr = 14, contentW = pw - ml - mr;
+    let y = 18;
+
+    doc.setTextColor(27, 42, 74);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(20);
+    doc.text("BANAHAW FOOD PARK", pw / 2, y, { align: "center" });
+    y += 6;
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(120, 115, 105);
+    doc.text("Brgy. Ibabang Iyam, Lucena City", pw / 2, y, { align: "center" });
+
+    y += 5;
+    doc.setDrawColor(27, 42, 74);
+    doc.setLineWidth(0.6);
+    doc.line(ml, y, pw - mr, y);
+    y += 8;
+
+    doc.setTextColor(27, 42, 74);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(12);
+    doc.text(`RENT LEDGER ${useRange ? MONTHS[month - 1].slice(0, 3) + ' ' + rangeStart + ' - ' + MONTHS[month - 1].slice(0, 3) + ' ' + rangeEnd : MONTHS[month - 1]} ${year}`, pw / 2, y, { align: "center" });
+    y += 8;
+
+    doc.setFontSize(8.5);
+    doc.setTextColor(80, 75, 65);
+    const lbl = (label, val, x, yy) => {
+      doc.setFont("helvetica", "bold");
+      doc.text(label, x, yy);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(40, 40, 40);
+      doc.text(String(val), x + doc.getTextWidth(label) + 2, yy);
+      doc.setTextColor(80, 75, 65);
+    };
+    lbl("TENANT:", tenant.name, ml, y);
+    const catLabel = categoryLabel(tenant.category);
+    lbl("  |  TYPE:", catLabel, ml + 70, y);
+    y += 5;
+    lbl("PRESENT FEE:", `${Number(tenant.presentFee).toFixed(2)} (Ayka: ${Number(tenant.presentAykaShare != null ? tenant.presentAykaShare : Math.round(tenant.presentFee*0.7)).toFixed(2)}, Mother: ${Number(tenant.presentMotherShare != null ? tenant.presentMotherShare : (tenant.presentFee - Math.round(tenant.presentFee*0.7))).toFixed(2)})`, ml, y);
+    y += 8;
+
+    const pdfDays = useRange ? days.filter((d) => d >= rangeStart && d <= rangeEnd) : days;
+    const sigImages = {};
+
+    let pdfRentTotal = 0, pdfMotherTotal = 0, pdfAykaTotal = 0, pdfGarbTotal = 0, pdfGrandTotal = 0;
+
+    const rows = pdfDays.map((d) => {
+      const e = getEntry(d);
+      const dObj = new Date(year, month - 1, d);
+      const wd = dObj.toLocaleDateString("en-PH", { weekday: "short" });
+      const rent = rowRent(e, tenant);
+      const mother = rowMother(e, tenant);
+      const ayka = rowAyka(e, tenant);
+      const garb = rowGarb(e);
+      const tot = rowTot(e, tenant);
+
+      if (e.status) {
+        pdfRentTotal += rent;
+        pdfMotherTotal += mother;
+        pdfAykaTotal += ayka;
+      }
+      pdfGarbTotal += garb;
+      if (e.signature) pdfGrandTotal += tot;
+
+      let rmk = e.remarks || (e.status === "present" ? "Present" : e.status === "absent" ? "Absent" : "");
+      if (e.datePaid && e.datePaid !== dk(year, month, d)) {
+        rmk = `[Paid ${e.datePaid}] ${rmk}`.trim();
+      }
+      if (e.signature) sigImages[d] = e.signature;
+
+      return [
+        `${MONTHS[month - 1].slice(0, 3)} ${d}`,
+        wd,
+        e.status ? e.status.toUpperCase() : "—",
+        rent > 0 ? Number(rent).toFixed(2) : "",
+        ayka > 0 ? Number(ayka).toFixed(2) : "",
+        mother > 0 ? Number(mother).toFixed(2) : "",
+        garb > 0 ? Number(garb).toFixed(2) : "",
+        tot > 0 ? Number(tot).toFixed(2) : "",
+        rmk,
+        e.signature ? "signed" : "",
+      ];
+    });
+
+    rows.push([
+      "TOTALS",
+      "",
+      `${presentC}P / ${absentC}A`,
+      Number(pdfRentTotal).toFixed(2),
+      Number(pdfAykaTotal).toFixed(2),
+      Number(pdfMotherTotal).toFixed(2),
+      Number(pdfGarbTotal).toFixed(2),
+      Number(pdfGrandTotal).toFixed(2),
+      "",
+      `${signedC}/${pdfDays.length}`
+    ]);
+
+    doc.autoTable({
+      startY: y, margin: { left: ml, right: mr },
+      head: [["DATE", "DAY", "STATUS", "RENT", "AYKA", "MOTHER", "TOTAL", "REMARKS", "SIGNATURE"]],
+      body: rows,
+      styles: { fontSize: 7.5, cellPadding: { top: 2.5, bottom: 2.5, left: 3, right: 3 }, textColor: [50, 50, 50], lineColor: [215, 210, 200], lineWidth: 0.2, font: "helvetica" },
+      headStyles: { fillColor: [27, 42, 74], textColor: [255, 255, 255], fontStyle: "bold", fontSize: 7 },
+      alternateRowStyles: { fillColor: [248, 246, 240] },
+      columnStyles: {
+        0: { cellWidth: 18 },
+        1: { cellWidth: 12 },
+        2: { cellWidth: 16 },
+        3: { halign: "right", cellWidth: 18 },
+        4: { halign: "right", cellWidth: 18 },
+        5: { halign: "right", cellWidth: 18 },
+        6: { halign: "right", cellWidth: 20, fontStyle: "bold" },
+        7: { cellWidth: 26 },
+        8: { cellWidth: 21, halign: "center" }
+      },
+      didDrawCell: function(data) {
+        if (data.column.index === 8 && data.section === 'body' && data.row.index < pdfDays.length) {
+          const dayNum = pdfDays[data.row.index];
+          if (dayNum && sigImages[dayNum]) {
+            try {
+              const cellX = data.cell.x + 1;
+              const cellY = data.cell.y + 1;
+              const cellW = data.cell.width - 2;
+              const cellH = data.cell.height - 2;
+              doc.addImage(sigImages[dayNum], 'PNG', cellX, cellY, cellW, cellH);
+            } catch (err) {}
+          }
+        }
+      }
+    });
+
+    let fy = doc.lastAutoTable.finalY || y;
+    fy += 6;
+    doc.setDrawColor(27, 42, 74);
+    doc.setLineWidth(0.5);
+    doc.line(ml, fy, pw - mr, fy);
+    fy += 6;
+
+    doc.setFontSize(8.5);
+    doc.setTextColor(60, 60, 60);
+    doc.setFont("helvetica", "bold");
+    doc.text("SUMMARY BREAKDOWN", ml, fy);
+    fy += 6;
+
+    doc.setFillColor(248, 246, 240);
+    doc.roundedRect(ml, fy, contentW, 22, 2, 2, "F");
+    doc.setDrawColor(220, 215, 200);
+    doc.roundedRect(ml, fy, contentW, 22, 2, 2, "S");
+
+    const bx = ml + 6, by = fy + 6;
+    doc.setFontSize(7.5);
+    doc.setTextColor(100, 95, 85);
+    doc.setFont("helvetica", "bold");
+    doc.text("TOTAL RENT:", bx, by);
+    doc.text("ATE AYKA SHARE:", bx + 50, by);
+    doc.text("MOTHER SHARE:", bx + 100, by);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(40, 40, 40);
+    doc.text(Number(pdfRentTotal).toFixed(2), bx, by + 4);
+    doc.text(Number(pdfAykaTotal).toFixed(2), bx + 50, by + 4);
+    doc.text(Number(pdfMotherTotal).toFixed(2), bx + 100, by + 4);
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8.5);
+    doc.setTextColor(27, 42, 74);
+    doc.text(`GRAND TOTAL DUE: P${Number(pdfGrandTotal).toFixed(2)}`, bx, by + 12);
+    fy += 26;
+
+    fy += 8;
+    doc.setDrawColor(180, 175, 168);
+    doc.setLineWidth(0.3);
+    doc.line(ml, fy, ml + 60, fy);
+    doc.line(pw - mr - 60, fy, pw - mr, fy);
+    fy += 4;
+    doc.setFontSize(7.5);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(140, 135, 125);
+    doc.text("Authorized Signature", ml, fy);
+    doc.text("Tenant Signature", pw - mr - 60, fy);
+
+    doc.setFontSize(7);
+    doc.setTextColor(180, 175, 168);
+    doc.text("Banahaw Food Park  |  Brgy. Ibabang Iyam, Lucena City", ml, ph - 10);
+    doc.text(`${new Date().toLocaleDateString("en-PH")} ${new Date().toLocaleTimeString("en-PH")}`, pw - mr, ph - 10, { align: "right" });
+
+    const sn = tenant.name.replace(/[^a-zA-Z0-9]/g, "_");
+    doc.save(`${sn}_${MONTHS[month - 1]}_${year}_Ledger.pdf`);
+  };
+
+  return (
+    <div style={{ minHeight: "100vh", background: C.paper, paddingBottom: 80 }}>
+      <div style={{ background: `linear-gradient(135deg, ${C.navy} 0%, ${C.navyL} 100%)`, color: "#fff", padding: "24px 20px 18px" }}>
+        <div style={{ maxWidth: 960, margin: "0 auto" }}>
+          <button onClick={onBack} style={{ background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.18)", borderRadius: 8, padding: "6px 12px", color: "#fff", fontSize: 13, cursor: "pointer", marginBottom: 12 }}>← Back to Tenants</button>
+          <div style={{ fontSize: 22, fontWeight: 700 }}>{tenant.name}</div>
+          <div style={{ fontSize: 12, opacity: 0.7, marginTop: 4 }}>
+            {categoryLabel(tenant.category)} · Present {peso(tenant.presentFee)} (Ayka {peso(tenant.presentAykaShare != null ? tenant.presentAykaShare : Math.round(tenant.presentFee*0.7))} / Mother {peso(tenant.presentMotherShare != null ? tenant.presentMotherShare : (tenant.presentFee - Math.round(tenant.presentFee*0.7)))}) · Garbage {peso(GARBAGE)}
+          </div>
+        </div>
+      </div>
+
+      <div style={{ maxWidth: 960, margin: "0 auto", padding: "20px 20px 0" }}>
+        {/* Top Summary Cards */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10, marginBottom: 18 }}>
+          <div className="fade-in" style={{ background: "#fff", border: `1px solid ${C.borderL}`, borderRadius: 10, padding: "12px 14px", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: C.inkS, textTransform: "uppercase", letterSpacing: 0.5 }}>Total Rent</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: C.navy, marginTop: 4, fontFamily: "'JetBrains Mono', monospace" }}>{peso(totalRentSum)}</div>
+          </div>
+          <div className="fade-in" style={{ background: "#fff", border: `1px solid ${C.borderL}`, borderRadius: 10, padding: "12px 14px", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: C.gold, textTransform: "uppercase", letterSpacing: 0.5 }}>Kay Ate Ayka Share</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: C.gold, marginTop: 4, fontFamily: "'JetBrains Mono', monospace" }}>{peso(totalAykaSum)}</div>
+          </div>
+          <div className="fade-in" style={{ background: "#fff", border: `1px solid ${C.borderL}`, borderRadius: 10, padding: "12px 14px", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: C.navy, textTransform: "uppercase", letterSpacing: 0.5 }}>Sinusulit kay Mother</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: C.navy, marginTop: 4, fontFamily: "'JetBrains Mono', monospace" }}>{peso(totalMotherSum)}</div>
+          </div>
+          <div className="fade-in" style={{ background: `linear-gradient(135deg, ${C.navy} 0%, ${C.navyL} 100%)`, color: "#fff", borderRadius: 10, padding: "12px 14px", boxShadow: "0 2px 8px rgba(27,42,74,0.2)" }}>
+            <div style={{ fontSize: 10, fontWeight: 700, opacity: 0.8, textTransform: "uppercase", letterSpacing: 0.5 }}>Grand Total</div>
+            <div style={{ fontSize: 20, fontWeight: 700, marginTop: 4, fontFamily: "'JetBrains Mono', monospace" }}>{peso(totalDue)}</div>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginBottom: 18, flexWrap: "wrap" }}>
+          <button onClick={() => changeMonth(-1)} className="btn-hover" style={{ padding: "8px 14px", background: "#fff", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 16, cursor: "pointer", color: C.ink }}>‹</button>
+          <span className="fade-in" style={{ fontSize: 18, fontWeight: 700, minWidth: 170, textAlign: "center", fontFamily: "'DM Serif Display', Georgia, serif", color: C.navy }}>{MONTHS[month - 1]} {year}</span>
+          <button onClick={() => changeMonth(1)} className="btn-hover" style={{ padding: "8px 14px", background: "#fff", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 16, cursor: "pointer", color: C.ink }}>›</button>
+          <button onClick={() => onCustomerView && onCustomerView(tenant)} className="btn-hover" style={{ padding: "8px 14px", background: C.navy, color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>✍️ Customer View</button>
+          <button onClick={downloadPdf} className="btn-hover ripple" style={{ padding: "8px 16px", background: C.gold, color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>📥 PDF</button>
+        </div>
+
+        <div className="fade-in" style={{ marginBottom: 16 }}>
+          <button onClick={() => { setUseRange(!useRange); if (!useRange) { setRangeStart(1); setRangeEnd(numDays); } }}
+            className="btn-hover"
+            style={{ padding: "8px 16px", background: useRange ? C.navy : '#fff', color: useRange ? '#fff' : C.ink, border: `1px solid ${useRange ? C.navy : C.border}`, borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
+            {useRange ? '✓ ' : '📅 '} Date Range Filter
+          </button>
+          {useRange && (
+            <div className="slide-up" style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '12px 16px', background: '#fff', border: `1px solid ${C.borderL}`, borderRadius: 10 }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: C.inkS }}>From:</span>
+              <select value={rangeStart} onChange={(e) => { const v = Number(e.target.value); setRangeStart(v); if (v > rangeEnd) setRangeEnd(v); }}
+                className="input-glow" style={{ padding: '7px 10px', border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 13, background: '#fff', color: C.ink }}>
+                {days.map((d) => <option key={d} value={d}>{MONTHS[month - 1].slice(0, 3)} {d}</option>)}
+              </select>
+              <span style={{ fontSize: 13, color: C.inkS }}>→</span>
+              <span style={{ fontSize: 13, fontWeight: 600, color: C.inkS }}>To:</span>
+              <select value={rangeEnd} onChange={(e) => { const v = Number(e.target.value); setRangeEnd(v); if (v < rangeStart) setRangeStart(v); }}
+                className="input-glow" style={{ padding: '7px 10px', border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 13, background: '#fff', color: C.ink }}>
+                {days.filter((d) => d >= rangeStart).map((d) => <option key={d} value={d}>{MONTHS[month - 1].slice(0, 3)} {d}</option>)}
+              </select>
+              <span style={{ fontSize: 12, color: C.inkS, marginLeft: 4 }}>{rangeDays.length} day{rangeDays.length !== 1 ? 's' : ''}</span>
+            </div>
+          )}
+        </div>
+
+        <div style={{ background: '#fff', border: `1px solid ${C.borderL}`, borderRadius: 12, overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 800 }}>
+              <thead>
+                <tr style={{ background: C.navy, color: "#fff", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.6 }}>
+                  <th style={{ padding: "12px 10px", textAlign: "left" }}>Date</th>
+                  <th style={{ padding: "12px 10px", textAlign: "center" }}>Status</th>
+                  <th style={{ padding: "12px 10px", textAlign: "right" }}>Total Rent</th>
+                  <th style={{ padding: "12px 10px", textAlign: "right" }}>Kay Ate Ayka</th>
+                  <th style={{ padding: "12px 10px", textAlign: "right" }}>Sinusulit kay Mother</th>
+                  <th style={{ padding: "12px 10px", textAlign: "right" }}>Total Due</th>
+                  <th style={{ padding: "12px 10px", textAlign: "right" }}>Amount Paid</th>
+                  <th style={{ padding: "12px 10px", textAlign: "right" }}>Balance</th>
+                  <th style={{ padding: "12px 10px", textAlign: "left" }}>Remarks</th>
+                  <th style={{ padding: "12px 10px", textAlign: "center" }}>Signature</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loaded && days.map((day, idx) => {
+                  const e = getEntry(day);
+                  const dObj = new Date(year, month - 1, day);
+                  const dateStr = dk(year, month, day);
+                  const wd = dObj.toLocaleDateString("en-PH", { weekday: "short" });
+                  const isToday = dObj.toDateString() === today.toDateString();
+                  const isWknd = dObj.getDay() === 0 || dObj.getDay() === 6;
+                  const isInRange = useRange && day >= rangeStart && day <= rangeEnd;
+                  const rent = rowRent(e, tenant), mother = rowMother(e, tenant), ayka = rowAyka(e, tenant), tot = rowTot(e, tenant);
+                  const pd = rowPaid(e, tenant), bl = rowBal(e, tenant);
+                  const hasPaidDiffDate = e.datePaid && e.datePaid !== dateStr;
+                  return (
+                    <tr key={day} className="table-row" style={{ background: isInRange ? 'rgba(197,150,26,0.08)' : isToday ? 'rgba(197,150,26,0.05)' : idx % 2 ? '#fff' : C.paperAlt, borderTop: `1px solid ${C.borderL}`, borderLeft: isInRange ? '3px solid #C5961A' : '3px solid transparent' }}>
+                      <td style={{ padding: "10px 10px" }}>
+                        <div style={{ fontWeight: 600, fontSize: 14, display: "flex", alignItems: "center", gap: 6 }}>
+                          <span>{day}</span>
+                          <button onClick={() => setEditingDay(day)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, color: C.inkS, padding: 0 }} title="Edit entry breakdown & remarks">✏️</button>
+                        </div>
+                        <div style={{ fontSize: 11, color: isWknd ? C.navy : C.inkS, fontWeight: 500 }}>{wd}</div>
+                        {isToday && <div style={{ fontSize: 10, color: C.gold, fontWeight: 600, marginTop: 1 }}>TODAY</div>}
+                      </td>
+                      <td style={{ padding: "8px 8px", textAlign: "center" }}>
+                        <div style={{ display: "flex", justifyContent: "center", gap: 4 }}>
+                          <button onClick={() => guardedUpdate(day, { status: e.status === "present" ? null : "present" })} className="btn-hover"
+                            style={{ padding: "4px 8px", fontSize: 11, fontWeight: 600, border: `1.5px solid ${C.green}`, color: e.status === "present" ? "#fff" : C.green, background: e.status === "present" ? C.green : "transparent", borderRadius: 6, cursor: "pointer" }}>✓ Present</button>
+                          <button onClick={() => guardedUpdate(day, { status: e.status === "absent" ? null : "absent" })} className="btn-hover"
+                            style={{ padding: "4px 8px", fontSize: 11, fontWeight: 600, border: `1.5px solid ${C.navy}`, color: e.status === "absent" ? "#fff" : C.navy, background: e.status === "absent" ? C.navy : "transparent", borderRadius: 6, cursor: "pointer" }}>✕ Absent</button>
+                        </div>
+                      </td>
+                      <td style={{ padding: "8px 10px", textAlign: "right", fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: rent > 0 ? C.ink : C.border }}>{e.status ? peso(rent) : "—"}</td>
+                      <td style={{ padding: "8px 10px", textAlign: "right", fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: ayka > 0 ? C.gold : C.border }}>{e.status ? peso(ayka) : "—"}</td>
+                      <td style={{ padding: "8px 10px", textAlign: "right", fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: mother > 0 ? C.navy : C.border }}>{e.status ? peso(mother) : "—"}</td>
+                      <td style={{ padding: "8px 10px", textAlign: "right", fontFamily: "'JetBrains Mono', monospace", fontSize: 14, fontWeight: 700, color: tot > 0 ? C.navy : C.border }}>{peso(tot)}</td>
+                      <td style={{ padding: "8px 10px", textAlign: "right", fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: C.green, fontWeight: 600 }}>{e.status ? peso(pd) : "—"}</td>
+                      <td style={{ padding: "8px 10px", textAlign: "right", fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: bl > 0 ? C.red : C.inkS, fontWeight: bl > 0 ? 700 : 400 }}>{bl > 0 ? peso(bl) : "—"}</td>
+                      <td style={{ padding: "8px 10px", fontSize: 12, color: C.ink }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <span>{e.remarks || "—"}</span>
+                          {hasPaidDiffDate && <span style={{ fontSize: 10, padding: "2px 5px", background: C.goldBg, color: C.gold, borderRadius: 4, fontWeight: 600 }}>Paid {e.datePaid}</span>}
+                        </div>
+                      </td>
+                      <td style={{ padding: "8px 10px", textAlign: "center" }}>
+                        {e.signature ? (
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
+                            <button onClick={() => setSigningDate(day)} style={{ background: "none", border: `2px solid ${C.greenBg}`, borderRadius: 6, padding: 4, cursor: "pointer" }} title="Click to re-sign">
+                              <img src={e.signature} alt="Sig" style={{ height: 22, maxWidth: 80 }} />
+                            </button>
+                            <button onClick={(ev) => { ev.stopPropagation(); if (window.confirm('Delete this signature?')) { updateEntry(day, { signature: null }); } }}
+                              style={{ width: 20, height: 20, borderRadius: "50%", background: C.redBg, border: `1px solid ${C.red}`, color: C.red, fontSize: 12, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1, flexShrink: 0 }} title="Delete signature">×</button>
+                          </div>
+                        ) : (
+                          <button onClick={() => setSigningDate(day)} className="btn-hover" style={{ padding: "4px 10px", fontSize: 11, border: `1.5px dashed ${C.border}`, borderRadius: 6, background: "transparent", color: C.inkS, cursor: "pointer", fontWeight: 500 }}>✎ Sign</button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+                {!loaded && <tr><td colSpan={10} style={{ padding: 32, textAlign: "center", color: C.inkS }}>Loading...</td></tr>}
+              </tbody>
+              <tfoot style={{ background: C.goldBg, fontWeight: 700, borderTop: `2px solid ${C.gold}` }}>
+                <tr>
+                  <td style={{ padding: "12px 10px", fontSize: 12, color: C.navy }}>TOTALS</td>
+                  <td style={{ padding: "12px 10px", textAlign: "center", fontSize: 11, color: C.ink }}>
+                    <span style={{ color: C.green }}>✓{presentC}</span> <span style={{ color: C.navy }}>✕{absentC}</span>
+                  </td>
+                  <td style={{ padding: "12px 10px", textAlign: "right", fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: C.navy }}>{peso(totalRentSum)}</td>
+                  <td style={{ padding: "12px 10px", textAlign: "right", fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: C.gold }}>{peso(totalAykaSum)}</td>
+                  <td style={{ padding: "12px 10px", textAlign: "right", fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: C.navy }}>{peso(totalMotherSum)}</td>
+                  <td style={{ padding: "12px 10px", textAlign: "right", fontFamily: "'JetBrains Mono', monospace", fontSize: 14, color: C.navy }}>{peso(totalDue)}</td>
+                  <td style={{ padding: "12px 10px", textAlign: "right", fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: C.green }}>{peso(totalPaidSum)}</td>
+                  <td style={{ padding: "12px 10px", textAlign: "right", fontFamily: "'JetBrains Mono', monospace", fontSize: 13, color: totalBalSum > 0 ? C.red : C.navy }}>{peso(totalBalSum)}</td>
+                  <td style={{ padding: "12px 10px", fontSize: 11, color: C.inkS }}>—</td>
+                  <td style={{ padding: "12px 10px", textAlign: "center", fontSize: 11, color: C.green }}>{signedC}/{numDays} signed</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+
+        <div className="slide-up" style={{ marginTop: 18, background: "#fff", border: `1px solid ${C.borderL}`, borderRadius: 12, padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+          <div style={{ flex: 1, minWidth: 200 }}>
+            <div style={{ display: "flex", gap: 18, fontSize: 13, fontWeight: 500, flexWrap: "wrap", marginBottom: 6 }}>
+              <span style={{ color: C.green }}>✓ {presentC} present</span>
+              <span style={{ color: C.navy }}>✕ {absentC} absent</span>
+              <span style={{ color: C.inkS }}>○ {numDays - presentC - absentC} unmarked</span>
+              <span style={{ color: C.inkS }}>✎ {signedC}/{numDays} signed</span>
+            </div>
+            <div style={{ display: "flex", gap: 14, fontSize: 11, color: C.inkS, flexWrap: "wrap" }}>
+              <span>Total Rent: {peso(totalRentSum)}</span>
+              <span>Ate Ayka Share: {peso(totalAykaSum)}</span>
+              <span>Mother Share: {peso(totalMotherSum)}</span>
+            </div>
+          </div>
+          <div style={{ textAlign: "right" }}>
+            <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: 1, color: C.inkS }}>Total Due for {MONTHS[month - 1]}</div>
+            <div style={{ fontSize: 26, fontWeight: 700, color: C.navy, fontFamily: "'DM Serif Display', Georgia, serif" }}>{peso(totalDue)}</div>
+          </div>
+        </div>
+
+        {editingDay && (
+          <DayDetailsModal
+            day={editingDay}
+            dateStr={dk(year, month, editingDay)}
+            tenant={tenant}
+            entry={getEntry(editingDay)}
+            onClose={() => setEditingDay(null)}
+            onSave={(patch) => {
+              updateEntry(editingDay, patch);
+              setEditingDay(null);
+            }}
+          />
+        )}
+
+        {useRange && (
+          <div className="slide-up" style={{ marginTop: 12, background: "#fff", border: `1px solid ${C.borderL}`, borderRadius: 12, padding: "14px 20px", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: C.gold, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Range: {MONTHS[month - 1].slice(0, 3)} {rangeStart} - {MONTHS[month - 1].slice(0, 3)} {rangeEnd}</div>
+                <div style={{ display: "flex", gap: 14, fontSize: 12, color: C.inkS }}>
+                  <span style={{ color: C.green }}>✓ {rangePresentC} present</span>
+                  <span style={{ color: C.navy }}>✕ {rangeAbsentC} absent</span>
+                  <span>Rent: {peso(rangeRentSum)}</span>
+                  <span>Ayka: {peso(rangeAykaSum)}</span>
+                  <span>Mother: {peso(rangeMotherSum)}</span>
+                  <span>Garbage: {peso(rangeGarbSum)}</span>
+                </div>
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <div style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: 1, color: C.inkS }}>Range Total</div>
+                <div style={{ fontSize: 22, fontWeight: 700, color: C.gold, fontFamily: "'DM Serif Display', Georgia, serif" }}>{peso(rangeTotal)}</div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {prevMonthData && (
+          <div className="fade-in" style={{ marginTop: 12, background: '#fff', border: `1px solid ${C.borderL}`, borderRadius: 12, padding: '14px 20px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: C.navy, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>↔ Monthly Comparison</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: 12, alignItems: 'center' }}>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 10, color: C.inkS, marginBottom: 4 }}>{prevMonthData.month}</div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: C.inkS, fontFamily: "'DM Serif Display', Georgia, serif" }}>{peso(prevMonthData.total)}</div>
+                <div style={{ fontSize: 10, color: C.inkS }}>✓ {prevMonthData.present} &middot; ✕ {prevMonthData.absent}</div>
+              </div>
+              <div style={{ textAlign: 'center', padding: '0 8px' }}>
+                {(() => {
+                  const change = prevMonthData.total > 0 ? ((totalDue - prevMonthData.total) / prevMonthData.total * 100) : 0;
+                  const isUp = change > 0;
+                  const isSame = Math.abs(change) < 0.5;
+                  return (
+                    <div>
+                      <div style={{ fontSize: 18, color: isSame ? C.inkS : isUp ? C.green : C.red }}>{isSame ? '=' : isUp ? '↑' : '↓'}</div>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: isSame ? C.green : C.red }}>{isSame ? 'Same' : (isUp ? '+' : '') + change.toFixed(1) + '%'}</div>
+                    </div>
+                  );
+                })()}
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 10, color: C.navy, fontWeight: 600, marginBottom: 4 }}>{MONTHS[month - 1]}</div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: C.navy, fontFamily: "'DM Serif Display', Georgia, serif" }}>{peso(totalDue)}</div>
+                <div style={{ fontSize: 10, color: C.navy }}>✓ {presentC} &middot; ✕ {absentC}</div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div style={{ height: 16, fontSize: 12, color: C.green, fontWeight: 600, textAlign: 'right', marginTop: 4, opacity: saveNote ? 1 : 0, transition: 'opacity 0.3s' }}>{saveNote}</div>
+      </div>
+
+      {signingDate && <SignaturePad initial={getEntry(signingDate).signature} onClose={() => setSigningDate(null)} onSave={(d) => { updateEntry(signingDate, { signature: d }); setSigningDate(null); }} />}
+    </div>
+  );
+}
+
+function CategoryScreen({ onSelect, onLock, onCloudBackup, onCloudRestore, cloudStatus }) {
+  const cats = [
+    { id: "foodtruck", label: CATEGORY_LABELS.foodtruck, hint: "Full-size mobile kitchen", icon: "🚚" },
+    { id: "mobilecart", label: CATEGORY_LABELS.mobilecart, hint: "Pushcart / small stall", icon: "🛒" },
+    { id: "tent2x2", label: CATEGORY_LABELS.tent2x2, hint: "2 by 2 meter tent space", icon: "⛺" },
+  ];
+  const [confirmingRestore, setConfirmingRestore] = useState(false);
+  const [showLog, setShowLog] = useState(false);
+  const [showRestored, setShowRestored] = useState(false);
+  const [isInstalled, setIsInstalled] = useState(() => window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true);
+  useEffect(() => {
+    const onInstalled = () => setIsInstalled(true);
+    window.addEventListener("pwa-installed", onInstalled);
+    return () => window.removeEventListener("pwa-installed", onInstalled);
+  }, []);
+  const handleInstall = async () => {
+    const promptEvt = window.deferredInstallPrompt;
+    if (promptEvt) {
+      promptEvt.prompt();
+      try { await promptEvt.userChoice; } catch (e) {}
+      window.deferredInstallPrompt = null;
+    } else {
+      alert("To install: tap your browser menu (⋮ or Share) and choose 'Install app' or 'Add to Home Screen'.");
+    }
+  };
+  return (
+    <div style={{ minHeight: "100vh", background: C.paper, display: "flex", alignItems: "center", justifyContent: "center", padding: "40px 20px" }}>
+      <div style={{ width: 440, maxWidth: "100%" }}>
+        <div style={{ textAlign: "center", marginBottom: 32 }}>
+          <div style={{ width: 56, height: 56, borderRadius: 14, background: `linear-gradient(135deg, ${C.navy}, ${C.navyL})`, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 28, marginBottom: 16, boxShadow: "0 4px 16px rgba(27,42,74,0.3)" }}>🏪</div>
+          <div style={{ fontSize: 26, fontWeight: 700, color: C.navy, fontFamily: "'DM Serif Display', Georgia, serif" }}>Banahaw Food Park</div>
+          <div style={{ fontSize: 13, color: C.inkS, marginTop: 8, lineHeight: 1.5 }}>Track daily rent payments for your food park tenants.</div>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {cats.map((c, idx) => (
+            <button key={c.id} onClick={() => onSelect(c.id)} className="fade-in hover-lift"
+              style={{ textAlign: "left", padding: "18px 20px", border: `1px solid ${C.border}`, borderRadius: 12, background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", gap: 14, boxShadow: "0 1px 3px rgba(0,0,0,0.04)", animationDelay: `${idx * 0.1}s` }}>
+              <span style={{ fontSize: 32 }}>{c.icon}</span>
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 600, color: C.ink }}>{c.label}</div>
+                <div style={{ fontSize: 12, color: C.inkS, marginTop: 2 }}>{c.hint}</div>
+              </div>
+            </button>
+          ))}
+        </div>
+        <div style={{ marginTop: 28, paddingTop: 20, borderTop: `1px dashed ${C.border}`, display: "flex", justifyContent: "center", gap: 10, flexWrap: "wrap" }}>
+          <button onClick={() => { doBackup(); }} className="btn-hover" style={{ padding: "7px 14px", background: "transparent", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, color: C.inkS, cursor: "pointer" }}>💾 Save File</button>
+          <button onClick={() => setShowLog(true)} className="btn-hover" style={{ padding: "7px 14px", background: "transparent", border: `1px solid ${C.gold}`, borderRadius: 8, fontSize: 12, color: C.gold, cursor: "pointer", fontWeight: 600 }}>📜 History</button>
+          <button onClick={onLock} style={{ padding: "7px 14px", background: "transparent", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, color: C.inkS, cursor: "pointer" }}>🔒 Lock</button>
+          {!isInstalled && <button onClick={handleInstall} className="btn-hover" style={{ padding: "7px 14px", background: "transparent", border: `1px solid ${C.navy}`, borderRadius: 8, fontSize: 12, color: C.navy, cursor: "pointer", fontWeight: 600 }}>📲 Install App</button>}
+        </div>
+        {cloudStatus && <div style={{ marginTop: 10, textAlign: "center", fontSize: 11, color: C.green, fontWeight: 500 }}>{cloudStatus}</div>}
+      </div>
+      {showLog && <ActivityLogModal onClose={() => setShowLog(false)} />}
+      {confirmingRestore && (
+        <RestoreConfirmModal
+          onConfirm={() => { setConfirmingRestore(false); onCloudRestore(() => setShowRestored(true)); }}
+          onClose={() => setConfirmingRestore(false)}
+        />
+      )}
+      {showRestored && (
+        <RestoredPopup onClose={() => { setShowRestored(false); window.location.reload(); }} />
+      )}
+    </div>
+  );
+}
+
+function RestoreConfirmModal({ onConfirm, onClose }) {
+  const [typed, setTyped] = useState("");
+  const matches = typed.trim().toUpperCase() === "RESTORE";
+
+  return (
+    <div className="modal-backdrop" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 95, padding: 16 }} onClick={onClose}>
+      <div className="modal-content" style={{ background: "#fff", borderRadius: 14, padding: 28, width: 420, maxWidth: "100%", boxShadow: "0 20px 60px rgba(0,0,0,0.25)" }} onClick={(e) => e.stopPropagation()}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+          <div style={{ fontSize: 18, fontWeight: 700, color: C.ink }}>Restore from Cloud?</div>
+          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: C.inkS, fontSize: 22 }}>×</button>
+        </div>
+        <div style={{ fontSize: 13, color: C.inkS, marginBottom: 16, lineHeight: 1.5 }}>
+          This will update all records on this device with the latest cloud backup.
+        </div>
+        <div style={{ fontSize: 12, color: C.inkS, marginBottom: 8 }}>Type <b style={{ color: C.gold }}>RESTORE</b> to confirm.</div>
+        <input
+          value={typed}
+          onChange={(e) => setTyped(e.target.value)}
+          placeholder="Type RESTORE to confirm"
+          autoFocus
+          style={{ width: "100%", padding: "11px 14px", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 14, marginBottom: 16 }}
+        />
+        <div style={{ display: "flex", gap: 10 }}>
+          <button type="button" onClick={onClose} style={{ flex: 1, padding: "11px 14px", background: "transparent", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 14, fontWeight: 500, color: C.inkS, cursor: "pointer" }}>Cancel</button>
+          <button
+            type="button"
+            disabled={!matches}
+            onClick={onConfirm}
+            style={{ flex: 1, padding: "11px 14px", background: matches ? C.gold : C.borderL, color: "#fff", border: "none", borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: matches ? "pointer" : "not-allowed" }}
+          >
+            Restore
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RestoredPopup({ onClose }) {
+  return (
+    <div className="modal-backdrop" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 99, padding: 16 }} onClick={onClose}>
+      <div className="modal-content" style={{ background: "#fff", borderRadius: 14, padding: 28, width: 340, maxWidth: "100%", textAlign: "center", boxShadow: "0 20px 60px rgba(0,0,0,0.25)" }} onClick={(e) => e.stopPropagation()}>
+        <div style={{ width: 48, height: 48, borderRadius: "50%", background: C.greenBg, color: C.green, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, margin: "0 auto 14px" }}>✓</div>
+        <div style={{ fontSize: 17, fontWeight: 700, color: C.ink, marginBottom: 6 }}>Restored</div>
+        <div style={{ fontSize: 13, color: C.inkS, marginBottom: 20, lineHeight: 1.5 }}>This device now has the latest data from the cloud.</div>
+        <button onClick={onClose} style={{ width: "100%", padding: "11px 14px", background: C.green, color: "#fff", border: "none", borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: "pointer" }}>OK</button>
+      </div>
+    </div>
+  );
+}
+
+function formatLogTime(iso) {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  return d.toLocaleString("en-PH", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
+}
+
+function ActivityLogModal({ onClose }) {
+  const [entries, setEntries] = useState([]);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await window.storage.get("activityLog");
+        setEntries(r && r.value ? JSON.parse(r.value) : []);
+      } catch { setEntries([]); }
+      setLoaded(true);
+    })();
+  }, []);
+
+  return (
+    <div className="modal-backdrop" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 95, padding: 16 }} onClick={onClose}>
+      <div className="modal-content" style={{ background: "#fff", borderRadius: 14, padding: 28, width: 480, maxWidth: "100%", maxHeight: "80vh", display: "flex", flexDirection: "column", boxShadow: "0 20px 60px rgba(0,0,0,0.25)" }} onClick={(e) => e.stopPropagation()}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+          <div style={{ fontSize: 18, fontWeight: 700, color: C.ink }}>📜 Activity Log</div>
+          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: C.inkS, fontSize: 22 }}>×</button>
+        </div>
+        <div style={{ fontSize: 12, color: C.inkS, marginBottom: 16 }}>Everything that's happened on this data — newest first.</div>
+        <div style={{ overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
+          {!loaded && <div style={{ textAlign: "center", padding: 24, color: C.inkS, fontSize: 13 }}>Loading…</div>}
+          {loaded && entries.length === 0 && (
+            <div style={{ textAlign: "center", padding: 24, color: C.inkS, fontSize: 13 }}>Nothing logged yet.</div>
+          )}
+          {entries.map((e, i) => (
+            <div key={i} style={{ padding: "10px 12px", border: `1px solid ${C.border}`, borderRadius: 8, background: C.paper }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: C.ink }}>{e.action}</div>
+                <div style={{ fontSize: 11, color: C.inkS, whiteSpace: "nowrap" }}>{formatLogTime(e.ts)}</div>
+              </div>
+              {e.detail && <div style={{ fontSize: 12, color: C.inkS, marginTop: 2 }}>{e.detail}</div>}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CategoryReport({ category, onBack }) {
+  const today = new Date();
+  const [year, setYear] = useState(today.getFullYear());
+  const [month, setMonth] = useState(today.getMonth() + 1);
+  const [tenants, setTenants] = useState([]);
+  const [loaded, setLoaded] = useState(false);
+  const [useDateRange, setUseDateRange] = useState(false);
+  const [fromDay, setFromDay] = useState(1);
+  const [toDay, setToDay] = useState(today.getDate());
+  const [showPerDay, setShowPerDay] = useState(false);
+  const [expandedTenant, setExpandedTenant] = useState(null);
+
+  useEffect(() => {
+    let alive = true;
+    const key = `tenants:${category}`;
+    (async () => {
+      try {
+        const cloud = await fetchKeyFromCloud(key);
+        if (alive && Array.isArray(cloud)) {
+          setTenants(cloud);
+          await window.storage.set(key, JSON.stringify(cloud)).catch(() => {});
+        } else {
+          const r = await window.storage.get(key).catch(() => null);
+          if (alive) setTenants(r && r.value ? JSON.parse(r.value) : []);
+        }
+      } catch (ex) {
+        try {
+          const r = await window.storage.get(key);
+          if (alive) setTenants(r && r.value ? JSON.parse(r.value) : []);
+        } catch (_) { if (alive) setTenants([]); }
+      }
+      if (alive) setLoaded(true);
+    })();
+    const unsubscribe = window.subscribeKeyFromCloud(key, remote => {
+      if (!alive) return;
+      const list = Array.isArray(remote) ? remote : [];
+      setTenants(list);
+      window.storage.set(key, JSON.stringify(list)).catch(() => {});
+      setLoaded(true);
+    });
+    return () => { alive = false; unsubscribe(); };
+  }, [category]);
+
+  const numDays = dim(year, month);
+  const days = Array.from({ length: numDays }, (_, i) => i + 1);
+  const activeDays = useDateRange ? days.filter(function(d) { return d >= fromDay && d <= toDay; }) : days;
+
+  const getEntries = async (tenant) => {
+    const key = `entries:${tenant.category}:${tenant.id}:${year}-${pad(month)}`;
+    let localData = {};
+    try {
+      const r = await window.storage.get(key);
+      if (r && r.value) localData = JSON.parse(r.value);
+    } catch (ex) {}
+    try {
+      const cloudData = await fetchKeyFromCloud(key);
+      if (cloudData && typeof cloudData === "object") {
+        localData = cloudData;
+        window.storage.set(key, JSON.stringify(localData)).catch(function(){});
+      }
+    } catch(e) {}
+    return localData || {};
+  };
+
+  const [tenantTotals, setTenantTotals] = useState([]);
+
+  useEffect(() => {
+    if (!loaded || tenants.length === 0) return;
+    (async () => {
+      const results = [];
+      var tenantsList = tenants;
+      for (var ti = 0; ti < tenantsList.length; ti++) {
+        var t = tenantsList[ti];
+        const entries = await getEntries(t);
+        var presentC = 0, absentC = 0, signedC = 0;
+        var rentSum = 0, aykaSum = 0, motherSum = 0, garbSum = 0, totalDue = 0, paidSum = 0, balSum = 0;
+        var dayData = [];
+        activeDays.forEach(function(d) {
+          const e = entries[dk(year, month, d)] || { status: null, signature: null };
+          const rent = rowRent(e, t);
+          const ayka = rowAyka(e, t);
+          const mother = rowMother(e, t);
+          const garb = rowGarb(e);
+          const tot = rent + garb;
+          const paid = rowPaid(e, t);
+          const bal = rowBal(e, t);
+
+          if (e.status === "present") presentC++;
+          else if (e.status === "absent") absentC++;
+          if (e.signature) signedC++;
+
+          if (e.status) {
+            rentSum += rent;
+            aykaSum += ayka;
+            motherSum += mother;
+            garbSum += garb;
+            totalDue += tot;
+            paidSum += paid;
+            balSum += bal;
+          }
+
+          const dObj = new Date(year, month - 1, d);
+          dayData.push({
+            day: d,
+            weekday: dObj.toLocaleDateString("en-PH", { weekday: "short" }),
+            status: e.status,
+            rent: rent,
+            ayka: ayka,
+            mother: mother,
+            garb: garb,
+            total: tot,
+            paid: paid,
+            bal: bal,
+            signed: !!e.signature
+          });
+        });
+        results.push({
+          ...t,
+          presentC, absentC, signedC,
+          rentSum, aykaSum, motherSum, garbSum, totalDue, paidSum, balSum,
+          days: activeDays.length, dayData
+        });
+      }
+      setTenantTotals(results);
+    })();
+  }, [loaded, tenants, year, month, fromDay, toDay, useDateRange]);
+
+  const grandTotal = tenantTotals.reduce((s, t) => s + t.totalDue, 0);
+  const grandAyka = tenantTotals.reduce((s, t) => s + t.aykaSum, 0);
+  const grandMother = tenantTotals.reduce((s, t) => s + t.motherSum, 0);
+  const grandGarb = tenantTotals.reduce((s, t) => s + t.garbSum, 0);
+  const grandPaid = tenantTotals.reduce((s, t) => s + t.paidSum, 0);
+  const grandBal = tenantTotals.reduce((s, t) => s + t.balSum, 0);
+  const totalPresent = tenantTotals.reduce((s, t) => s + t.presentC, 0);
+  const totalAbsent = tenantTotals.reduce((s, t) => s + t.absentC, 0);
+
+  const downloadCategoryPdf = () => {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+    const pw = 297, ph = 210, ml = 15, mr = 15;
+    let y = 16;
+
+    doc.setTextColor(27, 42, 74);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(18);
+    doc.text("BANAHAW FOOD PARK", pw / 2, y, { align: "center" });
+    y += 6;
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(120, 115, 105);
+    doc.text("Brgy. Ibabang Iyam, Lucena City", pw / 2, y, { align: "center" });
+    y += 5;
+    doc.setDrawColor(27, 42, 74);
+    doc.setLineWidth(0.6);
+    doc.line(ml, y, pw - mr, y);
+    y += 8;
+
+    doc.setTextColor(27, 42, 74);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(13);
+    const periodText = useDateRange ? `${MONTHS[month-1]} ${fromDay}-${toDay}, ${year}` : `${MONTHS[month-1]} ${year}`;
+    doc.text(`${categoryLabel(category).toUpperCase()} — CATEGORY REPORT (${periodText})`, pw / 2, y, { align: "center" });
+    y += 8;
+
+    const rows = tenantTotals.map((t, i) => [
+      i + 1,
+      t.name,
+      t.ownerName || "—",
+      t.presentC,
+      t.absentC,
+      pesoPdf(t.aykaSum),
+      pesoPdf(t.motherSum),
+      pesoPdf(t.totalDue),
+      pesoPdf(t.paidSum),
+      pesoPdf(t.balSum)
+    ]);
+
+    rows.push([
+      "TOTAL",
+      `GRAND TOTAL (${tenantTotals.length} Tenants)`,
+      "",
+      totalPresent,
+      totalAbsent,
+      pesoPdf(grandAyka),
+      pesoPdf(grandMother),
+      pesoPdf(grandTotal),
+      pesoPdf(grandPaid),
+      pesoPdf(grandBal)
+    ]);
+
+    doc.autoTable({
+      startY: y, margin: { left: ml, right: mr },
+      head: [["#", "Business Name", "Owner", "Present", "Absent", "Ayka Share", "Mother Share", "Total Due", "Paid", "Balance"]],
+      body: rows,
+      styles: { fontSize: 8.5, cellPadding: 3 },
+      headStyles: { fillColor: [27, 42, 74], textColor: [255, 255, 255], fontStyle: "bold" },
+      alternateRowStyles: { fillColor: [248, 246, 240] },
+      columnStyles: { 0: { cellWidth: 10 }, 5: { halign: "right" }, 6: { halign: "right" }, 7: { halign: "right", fontStyle: "bold" }, 8: { halign: "right" }, 9: { halign: "right", fontStyle: "bold" } }
+    });
+
+    doc.setFontSize(7);
+    doc.setTextColor(180, 175, 168);
+    doc.text("Banahaw Food Park  |  Brgy. Ibabang Iyam, Lucena City", ml, ph - 10);
+    doc.text(new Date().toLocaleDateString("en-PH"), pw - mr, ph - 10, { align: "right" });
+
+    doc.save(`${categoryLabel(category)}_${MONTHS[month - 1]}_${year}_CategoryReport.pdf`);
+  };
+
+  const changeMonth = (delta) => { let m = month + delta, y = year; if (m > 12) { m = 1; y++; } else if (m < 1) { m = 12; y--; } setMonth(m); setYear(y); setFromDay(1); setToDay(dim(y, m)); };
+
+  return (
+    <div style={{ minHeight: "100vh", background: C.paper }}>
+      <div style={{ background: `linear-gradient(135deg, ${C.navy} 0%, ${C.navyL} 100%)`, color: "#fff", padding: "24px 20px" }}>
+        <div style={{ maxWidth: 960, margin: "0 auto" }}>
+          <button onClick={onBack} style={{ background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.18)", borderRadius: 8, padding: "6px 12px", color: "#fff", fontSize: 13, cursor: "pointer", marginBottom: 12 }}>← Back</button>
+          <div style={{ fontSize: 22, fontWeight: 700 }}>{categoryLabel(category)} — Category Report</div>
+          <div style={{ fontSize: 12, opacity: 0.65, marginTop: 4 }}>Total payment per tenant for the month</div>
+        </div>
+      </div>
+      <div style={{ maxWidth: 960, margin: "0 auto", padding: "20px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
+          <button onClick={() => changeMonth(-1)} className="btn-hover" style={{ padding: "8px 14px", background: "#fff", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 16, cursor: "pointer" }}>‹</button>
+          <span style={{ fontSize: 18, fontWeight: 700, minWidth: 170, textAlign: "center", fontFamily: "'DM Serif Display', Georgia, serif", color: C.navy }}>{MONTHS[month - 1]} {year}</span>
+          <button onClick={() => changeMonth(1)} className="btn-hover" style={{ padding: "8px 14px", background: "#fff", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 16, cursor: "pointer" }}>›</button>
+          <button onClick={downloadCategoryPdf} className="btn-hover ripple" style={{ padding: "8px 16px", background: C.gold, color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>📥 Download PDF</button>
+        </div>
+
+        <div style={{ marginBottom: 16, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', justifyContent: 'center' }}>
+          <button onClick={() => { setUseDateRange(!useDateRange); if (!useDateRange) { setFromDay(1); setToDay(numDays); } }} className="btn-hover"
+            style={{ padding: '8px 16px', background: useDateRange ? C.navy : '#fff', color: useDateRange ? '#fff' : C.ink, border: `1px solid ${useDateRange ? C.navy : C.border}`, borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+            {useDateRange ? 'Done ' : 'Select Days'}
+          </button>
+          <button onClick={() => setShowPerDay(!showPerDay)} className="btn-hover"
+            style={{ padding: '8px 16px', background: showPerDay ? C.gold : '#fff', color: showPerDay ? '#fff' : C.ink, border: `1px solid ${showPerDay ? C.gold : C.border}`, borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+            {showPerDay ? 'Hide ' : 'Per Day'}
+          </button>
+        </div>
+        {useDateRange && (
+          <div className="slide-up" style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '12px 16px', background: '#fff', border: `1px solid ${C.borderL}`, borderRadius: 10, justifyContent: 'center' }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: C.inkS }}>From:</span>
+            <select value={fromDay} onChange={(e) => { const v = Number(e.target.value); setFromDay(v); if (v > toDay) setToDay(v); }}
+              style={{ padding: '7px 10px', border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 13, background: '#fff', color: C.ink }}>
+              {days.map(function(d) { return <option key={d} value={d}>{MONTHS[month-1].slice(0,3)} {d}</option>; })}
+            </select>
+            <span style={{ fontSize: 13, color: C.inkS }}>→</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: C.inkS }}>To:</span>
+            <select value={toDay} onChange={(e) => { const v = Number(e.target.value); setToDay(v); if (v < fromDay) setFromDay(v); }}
+              style={{ padding: '7px 10px', border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 13, background: '#fff', color: C.ink }}>
+              {days.filter(function(d) { return d >= fromDay; }).map(function(d) { return <option key={d} value={d}>{MONTHS[month-1].slice(0,3)} {d}</option>; })}
+            </select>
+            <span style={{ fontSize: 12, color: C.inkS }}>{activeDays.length} day{activeDays.length !== 1 ? 's' : ''}</span>
+          </div>
+        )}
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 10, marginBottom: 20 }}>
+          <div style={{ background: "#fff", border: `1px solid ${C.borderL}`, borderRadius: 10, padding: "12px 14px", textAlign: "center" }}>
+            <div style={{ fontSize: 10, fontWeight: 600, color: C.inkS, textTransform: "uppercase" }}>Total Due</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: C.navy, fontFamily: "'JetBrains Mono', monospace" }}>{peso(grandTotal)}</div>
+          </div>
+          <div style={{ background: "#fff", border: `1px solid ${C.borderL}`, borderRadius: 10, padding: "12px 14px", textAlign: "center" }}>
+            <div style={{ fontSize: 10, fontWeight: 600, color: C.gold, textTransform: "uppercase" }}>Ate Ayka Share</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: C.gold, fontFamily: "'JetBrains Mono', monospace" }}>{peso(grandAyka)}</div>
+          </div>
+          <div style={{ background: "#fff", border: `1px solid ${C.borderL}`, borderRadius: 10, padding: "12px 14px", textAlign: "center" }}>
+            <div style={{ fontSize: 10, fontWeight: 600, color: C.navy, textTransform: "uppercase" }}>Mother Share</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: C.navy, fontFamily: "'JetBrains Mono', monospace" }}>{peso(grandMother)}</div>
+          </div>
+          <div style={{ background: "#fff", border: `1px solid ${C.borderL}`, borderRadius: 10, padding: "12px 14px", textAlign: "center" }}>
+            <div style={{ fontSize: 10, fontWeight: 600, color: C.green, textTransform: "uppercase" }}>Total Paid</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: C.green, fontFamily: "'JetBrains Mono', monospace" }}>{peso(grandPaid)}</div>
+          </div>
+          <div style={{ background: grandBal > 0 ? C.redBg : "#fff", border: `1px solid ${grandBal > 0 ? C.red : C.borderL}`, borderRadius: 10, padding: "12px 14px", textAlign: "center" }}>
+            <div style={{ fontSize: 10, fontWeight: 600, color: grandBal > 0 ? C.red : C.inkS, textTransform: "uppercase" }}>Remaining Balance</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: grandBal > 0 ? C.red : C.navy, fontFamily: "'JetBrains Mono', monospace" }}>{peso(grandBal)}</div>
+          </div>
+        </div>
+
+        <div style={{ background: "#fff", border: `1px solid ${C.borderL}`, borderRadius: 12, overflow: "hidden" }}>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 700 }}>
+              <thead>
+                <tr style={{ background: C.navy, color: "#fff", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.6 }}>
+                  <th style={{ padding: "12px 10px", textAlign: "left" }}>#</th>
+                  <th style={{ padding: "12px 10px", textAlign: "left" }}>Business Name</th>
+                  <th style={{ padding: "12px 10px", textAlign: "center" }}>Attendance</th>
+                  <th style={{ padding: "12px 10px", textAlign: "right" }}>Ate Ayka Share</th>
+                  <th style={{ padding: "12px 10px", textAlign: "right" }}>Mother Share</th>
+                  <th style={{ padding: "12px 10px", textAlign: "right" }}>Total Due</th>
+                  <th style={{ padding: "12px 10px", textAlign: "right" }}>Amount Paid</th>
+                  <th style={{ padding: "12px 10px", textAlign: "right" }}>Balance</th>
+                </tr>
+              </thead>
+              <tbody>
+                {tenantTotals.map((t, i) => (
+                  <tr key={t.id} className="table-row" style={{ background: i % 2 ? C.paperAlt : "#fff", borderTop: `1px solid ${C.borderL}` }}>
+                    <td style={{ padding: "10px 10px", fontSize: 13, color: C.inkS }}>{i + 1}</td>
+                    <td style={{ padding: "10px 10px" }}>
+                      <div style={{ fontWeight: 600, fontSize: 14 }}>{t.name}</div>
+                      {t.ownerName && <div style={{ fontSize: 11, color: C.inkS }}>👤 {t.ownerName}</div>}
+                    </td>
+                    <td style={{ padding: "10px 10px", textAlign: "center" }}>
+                      <span style={{ color: C.green, fontWeight: 600, fontSize: 12 }}>✓{t.presentC}</span> <span style={{ color: C.red, fontWeight: 600, fontSize: 12 }}>✕{t.absentC}</span>
+                    </td>
+                    <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: "'JetBrains Mono', monospace", color: C.gold, fontSize: 13 }}>{peso(t.aykaSum)}</td>
+                    <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: "'JetBrains Mono', monospace", color: C.navy, fontSize: 13 }}>{peso(t.motherSum)}</td>
+                    <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, color: C.navy, fontSize: 13 }}>{peso(t.totalDue)}</td>
+                    <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: "'JetBrains Mono', monospace", color: C.green, fontSize: 13, fontWeight: 600 }}>{peso(t.paidSum)}</td>
+                    <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: "'JetBrains Mono', monospace", color: t.balSum > 0 ? C.red : C.inkS, fontSize: 13, fontWeight: t.balSum > 0 ? 700 : 400 }}>
+                      {t.balSum > 0 ? peso(t.balSum) : "—"}
+                    </td>
+                  </tr>
+                ))}
+                {tenantTotals.length > 0 && (
+                  <tr style={{ background: C.goldBg, fontWeight: 700 }}>
+                    <td colSpan={2} style={{ padding: "12px 10px", fontSize: 13, color: C.navy }}>GRAND TOTAL ({tenantTotals.length} tenants)</td>
+                    <td style={{ padding: "12px 10px", textAlign: "center" }}><span style={{ color: C.green }}>✓{totalPresent}</span> <span style={{ color: C.red }}>✕{totalAbsent}</span></td>
+                    <td style={{ padding: "12px 10px", textAlign: "right", fontFamily: "'JetBrains Mono', monospace", color: C.gold }}>{peso(grandAyka)}</td>
+                    <td style={{ padding: "12px 10px", textAlign: "right", fontFamily: "'JetBrains Mono', monospace", color: C.navy }}>{peso(grandMother)}</td>
+                    <td style={{ padding: "12px 10px", textAlign: "right", fontFamily: "'JetBrains Mono', monospace", color: C.navy, fontSize: 14 }}>{peso(grandTotal)}</td>
+                    <td style={{ padding: "12px 10px", textAlign: "right", fontFamily: "'JetBrains Mono', monospace", color: C.green, fontSize: 14 }}>{peso(grandPaid)}</td>
+                    <td style={{ padding: "12px 10px", textAlign: "right", fontFamily: "'JetBrains Mono', monospace", color: grandBal > 0 ? C.red : C.navy, fontSize: 14 }}>{peso(grandBal)}</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+          {tenantTotals.length === 0 && loaded && (
+            <div style={{ textAlign: "center", padding: 40, color: C.inkS }}>No tenants in this category.</div>
+          )}
+        </div>
+
+        {showPerDay && tenantTotals.length > 0 && (
+          <div className="fade-in" style={{ marginTop: 20 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: C.navy, marginBottom: 12, textTransform: 'uppercase', letterSpacing: 1 }}>
+              Per Day Breakdown {useDateRange ? '(Day ' + fromDay + '-' + toDay + ')' : '(Full Month)'}
+            </div>
+            {tenantTotals.map(function(t) {
+              return (
+                <div key={t.id} style={{ marginBottom: 12, background: '#fff', border: '1px solid ' + C.borderL, borderRadius: 12, overflow: 'hidden' }}>
+                  <button onClick={() => setExpandedTenant(expandedTenant === t.id ? null : t.id)} className="btn-hover"
+                    style={{ width: '100%', padding: '14px 16px', background: expandedTenant === t.id ? '#F0F4FF' : '#fff', border: 'none', borderBottom: expandedTenant === t.id ? '1px solid ' + C.borderL : 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', textAlign: 'left' }}>
+                    <div>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: C.ink }}>{t.name}</div>
+                      <div style={{ fontSize: 11, color: C.inkS, marginTop: 2 }}>{t.presentC} present, {t.absentC} absent, {t.signedC} signed</div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{ fontSize: 16, fontWeight: 700, color: C.navy }}>{peso(t.totalDue)}</div>
+                      <span style={{ fontSize: 16, color: C.inkS, transition: 'transform 0.2s', transform: expandedTenant === t.id ? 'rotate(180deg)' : 'rotate(0)' }}>▼</span>
+                    </div>
+                  </button>
+                  {expandedTenant === t.id && (
+                    <div className="slide-up">
+                      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <thead>
+                          <tr style={{ background: C.paperAlt, fontSize: 10, fontWeight: 600, color: C.inkS, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                            <th style={{ padding: '8px 12px', textAlign: 'left' }}>Date</th>
+                            <th style={{ padding: '8px 12px', textAlign: 'center' }}>Status</th>
+                            <th style={{ padding: '8px 12px', textAlign: 'right' }}>Rent</th>
+                            <th style={{ padding: '8px 12px', textAlign: 'right' }}>Total</th>
+                            <th style={{ padding: '8px 12px', textAlign: 'center' }}>Signed</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {t.dayData.map(function(dd) {
+                            return (
+                              <tr key={dd.day} className="table-row" style={{ borderTop: '1px solid ' + C.borderL, background: dd.signed ? 'rgba(22,163,74,0.03)' : '#fff' }}>
+                                <td style={{ padding: '7px 12px' }}>
+                                  <span style={{ fontWeight: 600, fontSize: 13 }}>{dd.day}</span>
+                                  <span style={{ fontSize: 11, color: C.inkS, marginLeft: 6 }}>{dd.weekday}</span>
+                                </td>
+                                <td style={{ padding: '7px 12px', textAlign: 'center' }}>
+                                  {dd.status === 'present' ? <span style={{ color: C.green, fontWeight: 600, fontSize: 12 }}>✓ Present</span>
+                                  : dd.status === 'absent' ? <span style={{ color: C.red, fontWeight: 600, fontSize: 12 }}>✕ Absent</span>
+                                  : <span style={{ color: C.inkS, fontSize: 12 }}>--</span>}
+                                </td>
+                                <td style={{ padding: '7px 12px', textAlign: 'right', fontSize: 12, color: dd.rent > 0 ? C.ink : C.border }}>{dd.rent > 0 ? peso(dd.rent) : '--'}</td>
+                                <td style={{ padding: '7px 12px', textAlign: 'right', fontSize: 13, fontWeight: 700, color: dd.total > 0 ? C.navy : C.border }}>{dd.total > 0 ? peso(dd.total) : '--'}</td>
+                                <td style={{ padding: '7px 12px', textAlign: 'center' }}>
+                                  {dd.signed ? <span style={{ color: C.green, fontSize: 11, fontWeight: 600 }}>Signed</span>
+                                  : <span style={{ color: C.red, fontSize: 11 }}>Unsigned</span>}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AmbaganView({ category, onBack }) {
+  const today = new Date();
+  const [tenants, setTenants] = useState([]);
+  const [loaded, setLoaded] = useState(false);
+  const [ambaganSheets, setAmbaganSheets] = useState([]);
+  const [activeSheet, setActiveSheet] = useState(0);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await window.storage.get(`tenants:${category}`);
+        setTenants(r && r.value ? JSON.parse(r.value) : []);
+      } catch { setTenants([]); }
+      try {
+        const r = await window.storage.get(`ambagan:${category}`);
+        const sheets = r && r.value ? JSON.parse(r.value) : [];
+        if (sheets.length === 0) {
+          sheets.push({ id: 1, name: "Ambagan 1", entries: {} });
+        }
+        setAmbaganSheets(sheets);
+      } catch {
+        setAmbaganSheets([{ id: 1, name: "Ambagan 1", entries: {} }]);
+      }
+      setLoaded(true);
+    })();
+  }, [category]);
+
+  const saveSheets = async (sheets) => {
+    setAmbaganSheets(sheets);
+    const storeKey = `ambagan:${category}`;
+    const jsonVal = JSON.stringify(sheets);
+    try { await window.storage.set(storeKey, jsonVal); autoBackupToCloud(storeKey, jsonVal); } catch {}
+  };
+
+  const addSheet = () => {
+    const num = ambaganSheets.length + 1;
+    const sheets = [...ambaganSheets, { id: num, name: `Ambagan ${num}`, entries: {} }];
+    saveSheets(sheets);
+    setActiveSheet(sheets.length - 1);
+  };
+
+  const togglePaid = (tenantId) => {
+    const sheets = [...ambaganSheets];
+    const sheet = { ...sheets[activeSheet] };
+    const entries = { ...sheet.entries };
+    entries[tenantId] = !entries[tenantId];
+    sheet.entries = entries;
+    sheets[activeSheet] = sheet;
+    saveSheets(sheets);
+  };
+
+  const deleteSheet = (idx) => {
+    if (ambaganSheets.length <= 1) return;
+    if (!confirm("Delete this ambagan sheet?")) return;
+    const sheets = ambaganSheets.filter((_, i) => i !== idx);
+    saveSheets(sheets);
+    setActiveSheet(Math.min(activeSheet, sheets.length - 1));
+  };
+
+  const currentSheet = ambaganSheets[activeSheet];
+  const paidCount = currentSheet ? tenants.filter(t => currentSheet.entries[t.id]).length : 0;
+  const totalCount = tenants.length;
+
+  const downloadAmbaganPdf = () => {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    const pw = 210, ph = 297, ml = 20, mr = 20;
+    let y = 20;
+
+    doc.setTextColor(27, 42, 74);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(20);
+    doc.text("BANAHAW FOOD PARK", pw / 2, y, { align: "center" });
+    y += 7;
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(120, 115, 105);
+    doc.text("Brgy. Ibabang Iyam, Lucena City", pw / 2, y, { align: "center" });
+    y += 6;
+    doc.setDrawColor(27, 42, 74);
+    doc.setLineWidth(0.6);
+    doc.line(ml, y, pw - mr, y);
+    y += 10;
+
+    doc.setTextColor(27, 42, 74);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(14);
+    doc.text(`${currentSheet.name.toUpperCase()} — ${categoryLabel(category).toUpperCase()}`, pw / 2, y, { align: "center" });
+    y += 6;
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(100, 100, 100);
+    doc.text(`${paidCount} of ${totalCount} paid`, pw / 2, y, { align: "center" });
+    y += 10;
+
+    const rows = tenants.map((t, i) => [
+      i + 1,
+      t.name,
+      t.ownerName || "—",
+      currentSheet.entries[t.id] ? "PAID" : "UNPAID"
+    ]);
+
+    doc.autoTable({
+      startY: y, margin: { left: ml, right: mr },
+      head: [["#", "Business Name", "Owner", "Status"]],
+      body: rows,
+      styles: { fontSize: 9, cellPadding: 4 },
+      headStyles: { fillColor: [197, 150, 26], textColor: [255, 255, 255], fontStyle: "bold" },
+      alternateRowStyles: { fillColor: [255, 248, 231] },
+      columnStyles: { 0: { cellWidth: 12 }, 3: { fontStyle: "bold" } }
+    });
+
+    doc.setFontSize(7);
+    doc.setTextColor(180, 175, 168);
+    doc.text("Banahaw Food Park  |  Brgy. Ibabang Iyam, Lucena City", ml, ph - 12);
+    doc.text(new Date().toLocaleDateString("en-PH"), pw - mr, ph - 12, { align: "right" });
+
+    doc.save(`${currentSheet.name}_${categoryLabel(category)}_${today.toISOString().slice(0,7)}.pdf`);
+  };
+
+  return (
+    <div style={{ minHeight: "100vh", background: C.paper }}>
+      <div style={{ background: `linear-gradient(135deg, ${C.gold} 0%, #A07818 100%)`, color: "#fff", padding: "24px 20px" }}>
+        <div style={{ maxWidth: 960, margin: "0 auto" }}>
+          <button onClick={onBack} style={{ background: "rgba(255,255,255,0.2)", border: "1px solid rgba(255,255,255,0.3)", borderRadius: 8, padding: "6px 12px", color: "#fff", fontSize: 13, cursor: "pointer", marginBottom: 12 }}>← Back</button>
+          <div style={{ fontSize: 22, fontWeight: 700 }}>📄 Ambagan — {categoryLabel(category)}</div>
+          <div style={{ fontSize: 12, opacity: 0.75, marginTop: 4 }}>Community fund collection tracking</div>
+        </div>
+      </div>
+      <div style={{ maxWidth: 960, margin: "0 auto", padding: "20px" }}>
+        <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
+          {ambaganSheets.map((s, i) => (
+            <button key={s.id} onClick={() => setActiveSheet(i)} className="btn-hover"
+              style={{ padding: "8px 16px", background: i === activeSheet ? C.gold : "#fff", color: i === activeSheet ? "#fff" : C.ink, border: `1px solid ${i === activeSheet ? C.gold : C.border}`, borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+              {s.name}
+            </button>
+          ))}
+          <button onClick={addSheet} className="btn-hover" style={{ padding: "8px 14px", background: "transparent", border: `2px dashed ${C.gold}`, borderRadius: 8, fontSize: 13, fontWeight: 600, color: C.gold, cursor: "pointer" }}>+ New Sheet</button>
+          {ambaganSheets.length > 1 && (
+            <button onClick={() => deleteSheet(activeSheet)} style={{ padding: "8px 14px", background: "transparent", border: `1px solid ${C.red}`, borderRadius: 8, fontSize: 12, color: C.red, cursor: "pointer" }}>🗑️</button>
+          )}
+          <button onClick={downloadAmbaganPdf} className="btn-hover ripple" style={{ padding: "8px 16px", background: C.navy, color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer", marginLeft: "auto" }}>📥 Download PDF</button>
+        </div>
+
+        <div style={{ background: "#fff", border: `1px solid ${C.borderL}`, borderRadius: 12, padding: "16px 20px", marginBottom: 16 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+            <span style={{ fontSize: 14, fontWeight: 700, color: C.navy }}>{currentSheet?.name}</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: paidCount === totalCount ? C.green : C.gold }}>{paidCount}/{totalCount} paid</span>
+          </div>
+          <div style={{ width: "100%", height: 10, background: C.borderL, borderRadius: 5, overflow: "hidden" }}>
+            <div style={{ width: `${totalCount > 0 ? (paidCount / totalCount * 100) : 0}%`, height: "100%", background: paidCount === totalCount ? C.green : C.gold, borderRadius: 5, transition: "width 0.3s" }} />
+          </div>
+        </div>
+
+        <div style={{ background: "#fff", border: `1px solid ${C.borderL}`, borderRadius: 12, overflow: "hidden" }}>
+          {tenants.map((t, i) => {
+            const isPaid = currentSheet && currentSheet.entries[t.id];
+            return (
+              <div key={t.id} onClick={() => togglePaid(t.id)} className="table-row"
+                style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 20px", cursor: "pointer", borderBottom: `1px solid ${C.borderL}`, background: isPaid ? C.greenBg : (i % 2 ? C.paperAlt : "#fff") }}>
+                <div style={{ width: 32, height: 32, borderRadius: 8, background: isPaid ? C.green : C.borderL, color: isPaid ? "#fff" : C.inkS, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 14, flexShrink: 0 }}>
+                  {isPaid ? "✓" : i + 1}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: C.ink }}>{t.name}</div>
+                  {t.ownerName && <div style={{ fontSize: 11, color: C.inkS }}>👤 {t.ownerName}</div>}
+                </div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: isPaid ? C.green : C.gold }}>
+                  {isPaid ? "PAID" : "TAP TO PAY"}
+                </div>
+              </div>
+            );
+          })}
+          {tenants.length === 0 && loaded && (
+            <div style={{ textAlign: "center", padding: 40, color: C.inkS }}>No tenants in this category.</div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function UnpaidTenants({ category, onBack }) {
+  const today = new Date();
+  const [year, setYear] = useState(today.getFullYear());
+  const [month, setMonth] = useState(today.getMonth() + 1);
+  const [tenants, setTenants] = useState([]);
+  const [loaded, setLoaded] = useState(false);
+  const [fromDay, setFromDay] = useState(1);
+  const [toDay, setToDay] = useState(today.getDate());
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await window.storage.get(`tenants:${category}`);
+        setTenants(r && r.value ? JSON.parse(r.value) : []);
+      } catch { setTenants([]); }
+      setLoaded(true);
+    })();
+  }, [category]);
+
+  const numDays = dim(year, month);
+  const days = Array.from({ length: numDays }, (_, i) => i + 1);
+
+  const [unpaidData, setUnpaidData] = useState([]);
+
+  useEffect(() => {
+    if (!loaded || tenants.length === 0) return;
+    (async () => {
+      const results = [];
+      for (const t of tenants) {
+        const key = `entries:${t.category}:${t.id}:${year}-${pad(month)}`;
+        let entries = {};
+        try {
+          const r = await window.storage.get(key);
+          if (r && r.value) entries = JSON.parse(r.value);
+        } catch {}
+        try {
+          const cloudData = await fetchKeyFromCloud(key);
+          if (cloudData) entries = mergeEntries(entries, cloudData);
+        } catch(e) {}
+
+        const rangeDays = days.filter(d => d >= fromDay && d <= toDay);
+        let unpaidDays = [];
+        let unpaidAmount = 0;
+
+        rangeDays.forEach(d => {
+          const e = entries[dk(year, month, d)] || { status: null, signature: null };
+          const bal = rowBal(e, t);
+          if (!e.signature && e.status) {
+            unpaidDays.push(d);
+            unpaidAmount += rowTot(e, t);
+          } else if (e.signature && bal > 0) {
+            unpaidDays.push(d);
+            unpaidAmount += bal;
+          }
+        });
+
+        if (unpaidDays.length > 0) {
+          results.push({ ...t, unpaidDays, unpaidAmount, totalDays: rangeDays.length });
+        }
+      }
+      setUnpaidData(results);
+    })();
+  }, [loaded, tenants, year, month, fromDay, toDay]);
+
+  const grandUnpaid = unpaidData.reduce((s, t) => s + t.unpaidAmount, 0);
+
+  const downloadUnpaidPdf = () => {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    const pw = 210, ph = 297, ml = 20, mr = 20;
+    let y = 20;
+
+    doc.setTextColor(27, 42, 74);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(20);
+    doc.text("BANAHAW FOOD PARK", pw / 2, y, { align: "center" });
+    y += 7;
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(120, 115, 105);
+    doc.text("Brgy. Ibabang Iyam, Lucena City", pw / 2, y, { align: "center" });
+    y += 6;
+    doc.setDrawColor(27, 42, 74);
+    doc.setLineWidth(0.6);
+    doc.line(ml, y, pw - mr, y);
+    y += 10;
+
+    doc.setTextColor(179, 48, 37);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(14);
+    doc.text(`UNPAID TENANTS — ${categoryLabel(category).toUpperCase()}`, pw / 2, y, { align: "center" });
+    y += 6;
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(100, 100, 100);
+    doc.text(`${MONTHS[month - 1]} ${fromDay} - ${toDay}, ${year}`, pw / 2, y, { align: "center" });
+    y += 10;
+
+    const rows = unpaidData.map((t, i) => [
+      i + 1,
+      t.name,
+      t.ownerName || "—",
+      t.unpaidDays.length,
+      t.totalDays,
+      pesoPdf(t.unpaidAmount)
+    ]);
+
+    doc.autoTable({
+      startY: y, margin: { left: ml, right: mr },
+      head: [["#", "Business Name", "Owner", "Unpaid Days", "Total Days", "Amount Due"]],
+      body: rows,
+      styles: { fontSize: 9, cellPadding: 4 },
+      headStyles: { fillColor: [179, 48, 37], textColor: [255, 255, 255], fontStyle: "bold" },
+      alternateRowStyles: { fillColor: [253, 232, 230] },
+      columnStyles: { 0: { cellWidth: 12 }, 5: { halign: "right", fontStyle: "bold" } }
+    });
+
+    let fy = doc.lastAutoTable.finalY || y;
+    fy += 10;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.setTextColor(179, 48, 37);
+    doc.text(`TOTAL UNPAID: ${pesoPdf(grandUnpaid)}`, pw - mr, fy, { align: "right" });
+
+    doc.setFontSize(7);
+    doc.setTextColor(180, 175, 168);
+    doc.text("Banahaw Food Park  |  Brgy. Ibabang Iyam, Lucena City", ml, ph - 12);
+    doc.text(new Date().toLocaleDateString("en-PH"), pw - mr, ph - 12, { align: "right" });
+
+    doc.save(`Unpaid_${categoryLabel(category)}_${MONTHS[month - 1]}_${year}.pdf`);
+  };
+
+  const changeMonth = (delta) => { let m = month + delta, y = year; if (m > 12) { m = 1; y++; } else if (m < 1) { m = 12; y--; } setMonth(m); setYear(y); setToDay(dim(y, m)); };
+
+  return (
+    <div style={{ minHeight: "100vh", background: C.paper }}>
+      <div style={{ background: `linear-gradient(135deg, ${C.red} 0%, #8B1A1A 100%)`, color: "#fff", padding: "24px 20px" }}>
+        <div style={{ maxWidth: 960, margin: "0 auto" }}>
+          <button onClick={onBack} style={{ background: "rgba(255,255,255,0.2)", border: "1px solid rgba(255,255,255,0.3)", borderRadius: 8, padding: "6px 12px", color: "#fff", fontSize: 13, cursor: "pointer", marginBottom: 12 }}>← Back</button>
+          <div style={{ fontSize: 22, fontWeight: 700 }}>⚠️ Unpaid Tenants — {categoryLabel(category)}</div>
+          <div style={{ fontSize: 12, opacity: 0.75, marginTop: 4 }}>Tenants without signatures (unpaid)</div>
+        </div>
+      </div>
+      <div style={{ maxWidth: 960, margin: "0 auto", padding: "20px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
+          <button onClick={() => changeMonth(-1)} className="btn-hover" style={{ padding: "8px 14px", background: "#fff", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 16, cursor: "pointer" }}>‹</button>
+          <span style={{ fontSize: 18, fontWeight: 700, minWidth: 170, textAlign: "center", fontFamily: "'DM Serif Display', Georgia, serif", color: C.navy }}>{MONTHS[month - 1]} {year}</span>
+          <button onClick={() => changeMonth(1)} className="btn-hover" style={{ padding: "8px 14px", background: "#fff", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 16, cursor: "pointer" }}>›</button>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16, flexWrap: "wrap", justifyContent: "center" }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: C.inkS }}>From:</span>
+          <select value={fromDay} onChange={(e) => { const v = Number(e.target.value); setFromDay(v); if (v > toDay) setToDay(v); }}
+            style={{ padding: "7px 10px", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 13 }}>
+            {days.map(d => <option key={d} value={d}>{d}</option>)}
+          </select>
+          <span style={{ fontSize: 13, color: C.inkS }}>→</span>
+          <span style={{ fontSize: 13, fontWeight: 600, color: C.inkS }}>To:</span>
+          <select value={toDay} onChange={(e) => setToDay(Number(e.target.value))}
+            style={{ padding: "7px 10px", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 13 }}>
+            {days.filter(d => d >= fromDay).map(d => <option key={d} value={d}>{d}</option>)}
+          </select>
+          <button onClick={downloadUnpaidPdf} className="btn-hover ripple" style={{ padding: "8px 16px", background: C.red, color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>📥 Download PDF</button>
+        </div>
+
+        <div style={{ background: C.redBg, border: `1px solid #F5C6C2`, borderRadius: 12, padding: "16px 20px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: C.red }}>{unpaidData.length} tenant{unpaidData.length !== 1 ? 's' : ''} with unpaid balance</div>
+            <div style={{ fontSize: 11, color: C.inkS, marginTop: 2 }}>{MONTHS[month - 1]} {fromDay} - {toDay}</div>
+          </div>
+          <div style={{ fontSize: 22, fontWeight: 700, color: C.red, fontFamily: "'DM Serif Display', Georgia, serif" }}>{peso(grandUnpaid)}</div>
+        </div>
+
+        <div style={{ background: "#fff", border: `1px solid ${C.borderL}`, borderRadius: 12, overflow: "hidden" }}>
+          {unpaidData.map((t, i) => (
+            <div key={t.id} className="table-row" style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 20px", borderBottom: `1px solid ${C.borderL}`, background: i % 2 ? C.paperAlt : "#fff" }}>
+              <div style={{ width: 32, height: 32, borderRadius: 8, background: C.redBg, color: C.red, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 13, flexShrink: 0 }}>
+                {i + 1}
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: C.ink }}>{t.name}</div>
+                {t.ownerName && <div style={{ fontSize: 11, color: C.inkS }}>👤 {t.ownerName}</div>}
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <div style={{ fontSize: 11, color: C.red, fontWeight: 500 }}>{t.unpaidDays.length} day{t.unpaidDays.length !== 1 ? 's' : ''} unpaid</div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: C.red, fontFamily: "'JetBrains Mono', monospace" }}>{peso(t.unpaidAmount)}</div>
+              </div>
+            </div>
+          ))}
+          {unpaidData.length === 0 && loaded && (
+            <div style={{ textAlign: "center", padding: 40 }}>
+              <div style={{ fontSize: 36, marginBottom: 8 }}>✅</div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: C.green }}>All tenants have signed!</div>
+              <div style={{ fontSize: 12, color: C.inkS, marginTop: 4 }}>No unpaid tenants for this period.</div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+function DashboardScreen({ onSelectCategory, onLock, cloudStatus }) {
+  const [stats, setStats] = useState({ tenants: 0, present: 0, absent: 0, balance: 0 });
+  const [online, setOnline] = useState(navigator.onLine);
+
+  useEffect(() => {
+    const refresh = async () => {
+      let totalTenants = 0, present = 0, absent = 0, balance = 0;
+      const today = new Date();
+      const y = today.getFullYear(), m = today.getMonth() + 1, d = today.getDate();
+      for (const cat of Object.keys(CATEGORY_LABELS)) {
+        try {
+          const r = await window.storage.get(`tenants:${cat}`);
+          const list = r && r.value ? JSON.parse(r.value) : [];
+          totalTenants += Array.isArray(list) ? list.length : 0;
+          if (!Array.isArray(list)) continue;
+          for (const t of list) {
+            try {
+              const er = await window.storage.get(`entries:${cat}:${t.id}:${y}-${pad(m)}`);
+              const entries = er && er.value ? JSON.parse(er.value) : {};
+              const e = entries[dk(y,m,d)];
+              if (e && e.status === 'present') present++;
+              if (e && e.status === 'absent') absent++;
+              if (e) balance += Math.max(0, rowTot(e,t) - rowPaid(e,t));
+            } catch (_) {}
+          }
+        } catch (_) {}
+      }
+      setStats({ tenants: totalTenants, present, absent, balance });
+    };
+    refresh();
+    const onlineHandler = () => setOnline(true);
+    const offlineHandler = () => setOnline(false);
+    window.addEventListener('online', onlineHandler);
+    window.addEventListener('offline', offlineHandler);
+    const timer = setInterval(refresh, 5000);
+    return () => { clearInterval(timer); window.removeEventListener('online', onlineHandler); window.removeEventListener('offline', offlineHandler); };
+  }, []);
+
+  const cats = [
+    ['foodtruck', '🚚', 'Food Trucks'],
+    ['mobilecart', '🛒', 'Mobile Carts'],
+    ['tent2x2', '⛺', 'Tent 2×2 Spaces']
+  ];
+
+  return (
+    <div style={{ minHeight:'100vh', background:C.paper, paddingBottom:40 }}>
+      <div style={{ background:`linear-gradient(135deg, ${C.navy} 0%, ${C.navyL} 100%)`, color:'#fff', padding:'30px 20px 26px' }}>
+        <div style={{ maxWidth:960, margin:'0 auto' }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:12 }}>
+            <div>
+              <div style={{ fontSize:28, fontWeight:700, fontFamily:"'DM Serif Display', Georgia, serif" }}>Banahaw Food Park</div>
+              <div style={{ fontSize:12, opacity:.75, marginTop:4 }}>Management Dashboard</div>
+            </div>
+            <button onClick={onLock} style={{ background:'rgba(255,255,255,.12)', color:'#fff', border:'1px solid rgba(255,255,255,.2)', borderRadius:8, padding:'7px 12px', cursor:'pointer' }}>🔒 Lock</button>
+          </div>
+          <div style={{ marginTop:16, fontSize:12, display:'inline-flex', alignItems:'center', gap:7, padding:'6px 10px', borderRadius:20, background:'rgba(255,255,255,.1)' }}>
+            <span style={{ width:8, height:8, borderRadius:'50%', background:online ? '#7DDA91' : '#F5A6A0' }}></span>
+            {online ? 'Online' : 'Offline — cached data'} {cloudStatus ? `· ${cloudStatus}` : ''}
+          </div>
+        </div>
+      </div>
+      <div style={{ maxWidth:960, margin:'0 auto', padding:'20px' }}>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(170px,1fr))', gap:10, marginBottom:20 }}>
+          {[
+            ['Total Tenants', stats.tenants, C.navy],
+            ['Present Today', stats.present, C.green],
+            ['Absent Today', stats.absent, C.red],
+            ['Outstanding Balance', peso(stats.balance), C.gold]
+          ].map(([label,value,color]) => <div key={label} style={{ background:'#fff', border:`1px solid ${C.borderL}`, borderRadius:12, padding:'16px 18px', boxShadow:'0 1px 3px rgba(0,0,0,.04)' }}><div style={{fontSize:10,fontWeight:700,color:C.inkS,textTransform:'uppercase'}}>{label}</div><div style={{fontSize:22,fontWeight:700,color,marginTop:6,fontFamily:"'JetBrains Mono',monospace"}}>{value}</div></div>)}
+        </div>
+        <div style={{ fontSize:17, fontWeight:700, color:C.navy, marginBottom:10 }}>Categories</div>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(220px,1fr))', gap:12 }}>
+          {cats.map(([cat,icon,label]) => <button key={cat} onClick={() => onSelectCategory(cat)} className="hover-lift" style={{ background:'#fff', border:`1px solid ${C.borderL}`, borderRadius:12, padding:18, textAlign:'left', cursor:'pointer', display:'flex', alignItems:'center', gap:12 }}><span style={{fontSize:30}}>{icon}</span><span><b style={{display:'block',fontSize:15,color:C.ink}}>{label}</b><span style={{fontSize:11,color:C.inkS}}>Open tenant list →</span></span></button>)}
+        </div>
+        <div style={{ marginTop:20, padding:14, background:C.goldBg, border:`1px solid ${C.goldLight || '#F5DFA0'}`, borderRadius:10, fontSize:12, color:C.inkS }}><b style={{color:C.navy}}>Quick access:</b> Choose a category above to manage tenants, view the ledger, reports, Ambagan, and unpaid list.</div>
+      </div>
+    </div>
+  );
+}
+
+function downloadCustomerTenantPdf(tenant, entries, year, month) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+  const days = dim(year, month);
+  const rows = [];
+  let due = 0, paid = 0, balance = 0;
+  for (let d = 1; d <= days; d++) {
+    const e = entries[dk(year, month, d)] || {status:null};
+    const td = rowTot(e, tenant), pd = rowPaid(e, tenant), bal = Math.max(0, td-pd);
+    if (e.status) { due += td; paid += pd; balance += bal; }
+    rows.push([`${MONTHS[month-1].slice(0,3)} ${d}`, e.status || "—", pesoPdf(td), pesoPdf(pd), pesoPdf(bal), e.coveredDate || "—", e.datePaid || "—", e.remarks || "—", e.signature ? "Signed" : "—"]);
+  }
+  doc.setFont("helvetica","bold"); doc.setFontSize(17); doc.setTextColor(27,42,74);
+  doc.text("BANAHAW FOOD PARK", 148.5, 14, {align:"center"});
+  doc.setFontSize(11); doc.text(`${tenant.name} — Customer Report`, 148.5, 21, {align:"center"});
+  doc.setFontSize(9); doc.setTextColor(90,90,90); doc.text(`${MONTHS[month-1]} ${year}`, 148.5, 27, {align:"center"});
+  doc.autoTable({startY:32,head:[["Date","Status","Amount Due","Paid","Balance","Covered Date","Date Paid","Remarks","Signature"]],body:rows,styles:{fontSize:7.5,cellPadding:2.5},headStyles:{fillColor:[27,42,74],textColor:[255,255,255]},columnStyles:{2:{halign:"right"},3:{halign:"right"},4:{halign:"right"}}});
+  const y=doc.lastAutoTable.finalY+8;
+  doc.setFont("helvetica","bold"); doc.setFontSize(9); doc.setTextColor(27,42,74);
+  doc.text(`Total Due: ${pesoPdf(due)}    Total Paid: ${pesoPdf(paid)}    Balance: ${pesoPdf(balance)}`,15,y);
+  doc.save(`${tenant.name.replace(/[^a-z0-9]+/gi,"_")}_${MONTHS[month-1]}_${year}_CustomerReport.pdf`);
+}
+
+function downloadCustomerCategoryPdf(tenant, entries, year, month) {
+  // Customer-safe category report: only the current tenant's customer-facing data is included.
+  downloadCustomerTenantPdf(tenant, entries, year, month);
+}
+
+function CustomerView({ tenant, onBack }) {
+  const today = new Date();
+  const [year,setYear] = useState(today.getFullYear());
+  const [month,setMonth] = useState(today.getMonth()+1);
+  const [entries,setEntries] = useState({});
+  const [signingDate,setSigningDate] = useState(null);
+  const storeKey = `entries:${tenant.category}:${tenant.id}:${year}-${pad(month)}`;
+
+  const load = useCallback(async () => {
+    let local = {};
+    try { const r=await window.storage.get(storeKey); if(r&&r.value)local=JSON.parse(r.value); } catch(_) {}
+    // Local cache is only the instant fallback. Firebase is authoritative.
+    try {
+      const cloud = await fetchKeyFromCloud(storeKey);
+      if (cloud && typeof cloud === "object") {
+        local = cloud;
+        await window.storage.set(storeKey, JSON.stringify(cloud)).catch(() => {});
+      }
+    } catch (_) {}
+    setEntries(local || {});
+  },[storeKey]);
+  useEffect(()=>{load();},[load]);
+  useEffect(()=>{
+    return window.subscribeKeyFromCloud(storeKey, remote => {
+      if (remote) { setEntries(remote); window.storage.set(storeKey,JSON.stringify(remote)).catch(()=>{}); }
+    });
+  },[storeKey]);
+
+  const getEntry = d => entries[dk(year,month,d)] || {status:null,signature:null};
+  const saveSignature = async (d, signature) => {
+    const key=dk(year,month,d);
+    const next={...entries,[key]:{...getEntry(d),signature}};
+    setEntries(next);
+    try { await window.storage.set(storeKey,JSON.stringify(next)); } catch(_) {}
+    if (typeof window.syncEntryDay === 'function') {
+      const ok = await window.syncEntryDay(tenant.category,tenant.id,`${year}-${pad(month)}`,key,{signature},new Date().toISOString());
+      setCloudStatus(ok ? 'synced' : 'offline', ok ? 'Database Synced ✓' : 'Offline — changes will sync automatically');
+    }
+    setSigningDate(null);
+    window.logActivity(signature ? 'Customer signature saved' : 'Customer signature cleared', `${tenant.name} — ${key}`);
+  };
+  const days=Array.from({length:dim(year,month)},(_,i)=>i+1);
+  const changeMonth=delta=>{let m=month+delta,y=year;if(m>12){m=1;y++;}if(m<1){m=12;y--;}setMonth(m);setYear(y);};
+  return <div style={{minHeight:'100vh',background:C.paper,paddingBottom:60}}>
+    <div style={{background:`linear-gradient(135deg, ${C.navy} 0%, ${C.navyL} 100%)`,color:'#fff',padding:'24px 20px 18px'}}><div style={{maxWidth:960,margin:'0 auto'}}><button onClick={onBack} style={{background:'rgba(255,255,255,.12)',border:'1px solid rgba(255,255,255,.18)',borderRadius:8,padding:'6px 12px',color:'#fff',cursor:'pointer',marginBottom:12}}>← Back to Ledger</button><div style={{fontSize:22,fontWeight:700}}>Customer View</div><div style={{fontSize:13,opacity:.8,marginTop:4}}>{tenant.name} · {categoryLabel(tenant.category)}</div></div></div>
+    <div style={{maxWidth:960,margin:'0 auto',padding:'20px'}}>
+      <div style={{textAlign:'center',marginBottom:18}}><button onClick={()=>changeMonth(-1)} style={{padding:'7px 13px',border:`1px solid ${C.border}`,background:'#fff',borderRadius:8,cursor:'pointer'}}>‹</button><span style={{display:'inline-block',minWidth:170,fontWeight:700,color:C.navy}}>{MONTHS[month-1]} {year}</span><button onClick={()=>changeMonth(1)} style={{padding:'7px 13px',border:`1px solid ${C.border}`,background:'#fff',borderRadius:8,cursor:'pointer'}}>›</button></div>
+      <div style={{display:'flex',justifyContent:'center',gap:8,marginBottom:14,flexWrap:'wrap'}}>
+        <button onClick={()=>onBack()} style={{padding:'8px 14px',background:'#fff',border:`1px solid ${C.border}`,borderRadius:8,cursor:'pointer',fontSize:12}}>← Back to Ledger</button>
+        <button onClick={()=>downloadCustomerTenantPdf(tenant,entries,year,month)} style={{padding:'8px 14px',background:C.gold,color:'#fff',border:'none',borderRadius:8,cursor:'pointer',fontSize:12,fontWeight:600}}>📥 Export Customer PDF</button>
+        <button onClick={()=>downloadCustomerCategoryPdf(tenant,entries,year,month)} style={{padding:'8px 14px',background:C.navy,color:'#fff',border:'none',borderRadius:8,cursor:'pointer',fontSize:12,fontWeight:600}}>📊 Category Report</button>
+      </div>
+      <div style={{background:'#fff',border:`1px solid ${C.borderL}`,borderRadius:12,overflow:'auto'}}><table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}><thead><tr style={{background:C.paper}}>{['Date','Status','Amount Due','Amount Paid','Balance','Covered Date','Date Paid','Remarks','Signature'].map(h=><th key={h} style={{padding:'10px 8px',textAlign:'left',borderBottom:`1px solid ${C.borderL}`,whiteSpace:'nowrap'}}>{h}</th>)}</tr></thead><tbody>{days.map(d=>{const e=getEntry(d);const due=rowTot(e,tenant),paid=rowPaid(e,tenant),bal=Math.max(0,due-paid);return <tr key={d}><td style={{padding:'9px 8px',borderBottom:`1px solid ${C.borderL}`}}>{MONTHS[month-1].slice(0,3)} {d}</td><td style={{padding:'9px 8px',borderBottom:`1px solid ${C.borderL}`,color:e.status==='present'?C.green:e.status==='absent'?C.red:C.inkS,fontWeight:600}}>{e.status||'—'}</td><td style={{padding:'9px 8px',borderBottom:`1px solid ${C.borderL}`}}>{peso(due)}</td><td style={{padding:'9px 8px',borderBottom:`1px solid ${C.borderL}`}}>{peso(paid)}</td><td style={{padding:'9px 8px',borderBottom:`1px solid ${C.borderL}`,color:bal>0?C.red:C.green,fontWeight:700}}>{peso(bal)}</td><td style={{padding:'9px 8px',borderBottom:`1px solid ${C.borderL}`}}>{e.coveredDate||'—'}</td><td style={{padding:'9px 8px',borderBottom:`1px solid ${C.borderL}`}}>{e.datePaid||'—'}</td><td style={{padding:'9px 8px',borderBottom:`1px solid ${C.borderL}`}}>{e.remarks||'—'}</td><td style={{padding:'9px 8px',borderBottom:`1px solid ${C.borderL}`}}>{e.signature?<div style={{display:'flex',alignItems:'center',gap:6}}><img src={e.signature} alt="Signature" style={{height:28,maxWidth:90}}/><button onClick={()=>setSigningDate(d)} style={{fontSize:10,padding:'4px 7px',border:`1px solid ${C.border}`,background:'#fff',borderRadius:6,cursor:'pointer'}}>Edit</button></div>:<button onClick={()=>setSigningDate(d)} style={{padding:'6px 9px',background:C.navy,color:'#fff',border:'none',borderRadius:6,fontSize:11,cursor:'pointer'}}>✍️ Sign</button>}</td></tr>})}</tbody></table></div>
+      <div style={{marginTop:12,fontSize:11,color:C.inkS}}>Customer View shows customer-facing information only. Internal Ayka Share and Mother Share details are not displayed.</div>
+    </div>
+    {signingDate && <SignaturePad initial={getEntry(signingDate).signature} onClose={()=>setSigningDate(null)} onSave={sig=>saveSignature(signingDate,sig)}/>} 
+  </div>;
+}
+
+function App() {
+  const [screen, setScreen] = useState("lock");
+  const [customerTenant, setCustomerTenant] = useState(null);
+  const [category, setCategory] = useState(null);
+  const [tenants, setTenants] = useState([]);
+  const [activeTenant, setActiveTenant] = useState(null);
+  const [showModal, setShowModal] = useState(null);
+  const [cloudStatus, setCloudStatus] = useState("");
+
+  useEffect(() => {
+    const onSync = (e) => {
+      if (e.detail === "syncing") setCloudStatus("Syncing database…");
+      else if (e.detail === "synced") { setCloudStatus("Database Synced ✓"); setTimeout(() => setCloudStatus(""), 2500); }
+      else if (e.detail === "error" || e.detail === "offline") { setCloudStatus("Offline — changes will sync automatically"); setTimeout(() => setCloudStatus(""), 3500); }
+      else if (e.detail) { setCloudStatus(String(e.detail)); setTimeout(() => setCloudStatus(""), 2200); }
+    };
+    window.addEventListener("cloudsync", onSync);
+    return () => window.removeEventListener("cloudsync", onSync);
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      // Firebase is the source of truth. On every app start, load the existing
+      // Firebase records into the local cache FIRST, without ever writing back
+      // Firebase is loaded through realtime listeners and targeted reads.
+      // There is intentionally no destructive startup restore.
+      try {
+        if (sessionStorage.getItem("rl_unlocked") === "1") {
+          setScreen("dashboard");
+          return;
+        }
+        const pinExists = await window.storage.get("pin");
+        if (pinExists && pinExists.value) {
+          setScreen("lock");
+        } else {
+          setScreen("category");
+        }
+      } catch {
+        setScreen("category");
+      }
+    })();
+  }, []);
+
+  // Keep the currently selected tenant list live across every device.
+  useEffect(() => {
+    if (!category) return;
+    const key = `tenants:${category}`;
+    const unsubscribe = window.subscribeKeyFromCloud(key, (remoteList) => {
+      if (Array.isArray(remoteList)) {
+        setTenants(remoteList);
+        window.storage.set(key, JSON.stringify(remoteList)).catch(() => {});
+      }
+    });
+    return () => unsubscribe();
+  }, [category]);
+
+  const loadTenants = async (cat) => {
+    const key = `tenants:${cat}`;
+    let list = [];
+    try {
+      const r = await window.storage.get(key);
+      if (r && r.value) list = JSON.parse(r.value);
+    } catch {}
+    // Local cache is only the instant fallback; Firebase remains authoritative.
+    try {
+      const cloudList = await fetchKeyFromCloud(key);
+      if (cloudList && Array.isArray(cloudList)) {
+        list = cloudList;
+        await window.storage.set(key, JSON.stringify(list)).catch(() => {});
+      }
+    } catch(e) {}
+    return list || [];
+  };
+  const saveSession = async (cat, tid) => { try { await window.storage.set("session", JSON.stringify({ category: cat, tenantId: tid || null })); } catch {} };
+  const saveTenants = async (cat, list) => {
+    const storeKey = `tenants:${cat}`;
+    const jsonVal = JSON.stringify(list);
+    try { await window.storage.set(storeKey, jsonVal); } catch {}
+    if (typeof syncTenants === 'function') {
+      await syncTenants(cat, list, new Date().toISOString(), tenants);
+    }
+  };
+
+  const handleCategorySelect = async (cat) => {
+    setCategory(cat);
+    const list = await loadTenants(cat);
+    setTenants(list);
+    setScreen("tenantList");
+  };
+
+  const handleOpenTenant = async (t) => {
+    setActiveTenant(t);
+    setScreen("ledger");
+  };
+
+  const PRICE_FIELDS = ['presentFee','absentFee','presentMotherShare','absentMotherShare','presentAykaShare','absentAykaShare'];
+
+  const freezeExistingEntries = async (oldTenant, newTenant) => {
+    const now = new Date();
+    for (let offset = 0; offset < 24; offset++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - offset, 1);
+      const y = d.getFullYear();
+      const m = d.getMonth() + 1;
+      const key = `entries:${oldTenant.category}:${oldTenant.id}:${y}-${pad(m)}`;
+      try {
+        const r = await window.storage.get(key);
+        if (!r || !r.value) continue;
+        const entries = JSON.parse(r.value);
+        let changed = false;
+        for (const ek of Object.keys(entries)) {
+          const e = entries[ek];
+          if (!e.status) continue;
+          const p = e.status === 'present';
+          if (!e.signature && offset === 0 && newTenant) {
+            entries[ek].rentAmount = p ? newTenant.presentFee : newTenant.absentFee;
+            entries[ek].aykaShare = p
+              ? (newTenant.presentAykaShare != null ? newTenant.presentAykaShare : Math.round((Number(newTenant.presentFee)||0)*0.7))
+              : (newTenant.absentAykaShare != null ? newTenant.absentAykaShare : Math.round((Number(newTenant.absentFee)||0)*0.7));
+            entries[ek].motherShare = p
+              ? (newTenant.presentMotherShare != null ? newTenant.presentMotherShare : ((Number(newTenant.presentFee)||0) - entries[ek].aykaShare))
+              : (newTenant.absentMotherShare != null ? newTenant.absentMotherShare : ((Number(newTenant.absentFee)||0) - entries[ek].aykaShare));
+            changed = true;
+          } else {
+            const patch = {};
+            if (e.rentAmount == null) patch.rentAmount = p ? oldTenant.presentFee : oldTenant.absentFee;
+            if (e.motherShare == null) patch.motherShare = p
+              ? (oldTenant.presentMotherShare != null ? oldTenant.presentMotherShare : oldTenant.presentFee)
+              : (oldTenant.absentMotherShare != null ? oldTenant.absentMotherShare : oldTenant.absentFee);
+            if (e.aykaShare == null) patch.aykaShare = p
+              ? (oldTenant.presentAykaShare != null ? oldTenant.presentAykaShare : 0)
+              : (oldTenant.absentAykaShare != null ? oldTenant.absentAykaShare : 0);
+            if (Object.keys(patch).length) { entries[ek] = { ...e, ...patch }; changed = true; }
+          }
+        }
+        if (changed) {
+          const jsonVal = JSON.stringify(entries);
+          await window.storage.set(key, jsonVal);
+          autoBackupToCloud(key, jsonVal);
+        }
+      } catch {}
+    }
+  };
+
+  const handleSaveTenant = async (t) => {
+    let next;
+    const existing = tenants.find((x) => x.id === t.id);
+    if (existing && PRICE_FIELDS.some((f) => Number(existing[f] ?? 0) !== Number(t[f] ?? 0))) {
+      await freezeExistingEntries(existing, t);
+    }
+    if (existing) {
+      next = tenants.map((x) => x.id === t.id ? t : x);
+    } else {
+      next = [...tenants, t];
+    }
+    setTenants(next);
+    await saveTenants(category, next);
+    setShowModal(null);
+    window.logActivity(existing ? "Tenant updated" : "Tenant added", `${t.name} — ${categoryLabel(t.category)}`);
+  };
+
+  const handleDeleteTenant = async (id) => {
+    const removed = tenants.find((t) => t.id === id);
+    const next = tenants.filter((t) => t.id !== id);
+    setTenants(next);
+    await saveTenants(category, next);
+    if (removed) window.logActivity("Tenant deleted", `${removed.name} — ${categoryLabel(removed.category)}`);
+  };
+
+  const handleCloudBackup = async () => {
+    try {
+      setCloudStatus("Syncing...");
+      await cloudBackup();
+      setCloudStatus("Synced ✓");
+      setTimeout(() => setCloudStatus(""), 2000);
+    } catch (e) {
+      setCloudStatus("Sync failed");
+      setTimeout(() => setCloudStatus(""), 3000);
+    }
+  };
+
+  const handleCloudRestore = async (onDone) => {
+    try {
+      setCloudStatus("Restoring...");
+      await cloudRestore();
+      setCloudStatus("");
+      window.logActivity("Data restored from cloud", "");
+      if (onDone) onDone();
+    } catch (e) {
+      setCloudStatus("Restore failed: " + e.message);
+      setTimeout(() => setCloudStatus(""), 3000);
+    }
+  };
+
+  const handleLock = () => {
+    setScreen("lock");
+    setActiveTenant(null);
+    setCategory(null);
+    setCustomerTenant(null);
+    try { window.storage.delete("session"); } catch {}
+    try { sessionStorage.removeItem("rl_unlocked"); } catch {}
+  };
+
+  return (
+    <>
+      {screen === "lock" && <LockScreen onUnlock={() => { try { sessionStorage.setItem("rl_unlocked", "1"); } catch {} setScreen("dashboard"); setCategory(null); }} />}
+
+      {screen === "dashboard" && <DashboardScreen onSelectCategory={handleCategorySelect} onLock={handleLock} cloudStatus={cloudStatus} />}
+
+      {screen === "category" && <CategoryScreen onSelect={handleCategorySelect} onLock={handleLock} onCloudBackup={handleCloudBackup} onCloudRestore={handleCloudRestore} cloudStatus={cloudStatus} />}
+
+      {screen === "tenantList" && (
+        <TenantListScreen
+          tenants={tenants} category={category}
+          onOpen={handleOpenTenant}
+          onAdd={(cat) => { setShowModal({ type: "add", category: cat }); }}
+          onEdit={(t) => { setShowModal({ type: "edit", tenant: t }); }}
+          onBack={() => setScreen("category")}
+          onDelete={handleDeleteTenant}
+          onLock={handleLock}
+          onCategoryReport={(cat) => { setCategory(cat); setScreen("categoryReport"); }}
+          onAmbagan={(cat) => setScreen("ambagan")}
+          onUnpaidTenants={(cat) => setScreen("unpaidTenants")}
+        />
+      )}
+
+      {screen === "ledger" && activeTenant && (
+        <Ledger tenant={activeTenant} onBack={() => { setActiveTenant(null); setScreen("tenantList"); saveSession(category, null); }} onCustomerView={(t) => { setCustomerTenant(t); setScreen("customerView"); }} />
+      )}
+
+      {screen === "customerView" && customerTenant && <CustomerView tenant={customerTenant} onBack={() => setScreen("ledger")} />}
+
+      {screen === "categoryReport" && (
+        <CategoryReport category={category} onBack={() => setScreen("tenantList")} />
+      )}
+
+      {screen === "ambagan" && (
+        <AmbaganView category={category} onBack={() => setScreen("tenantList")} />
+      )}
+
+      {screen === "unpaidTenants" && (
+        <UnpaidTenants category={category} onBack={() => setScreen("tenantList")} />
+      )}
+
+      {showModal && (
+        <TenantModal
+          tenant={showModal.type === "edit" ? showModal.tenant : null}
+          category={showModal.category || (showModal.tenant && showModal.tenant.category) || category}
+          onSave={handleSaveTenant}
+          onClose={() => setShowModal(null)}
+        />
+      )}
+    </>
+  );
+}
+
+class BanahawErrorBoundary extends React.Component {
+  constructor(props){ super(props); this.state={error:null}; }
+  static getDerivedStateFromError(error){ return {error:error}; }
+  componentDidCatch(error, info){ console.error("Banahaw UI error:", error, info); }
+  render(){
+    if(this.state.error){
+      return <div style={{minHeight:"100vh",background:"#FAFAF7",display:"flex",alignItems:"center",justifyContent:"center",padding:24,fontFamily:"Inter,Arial,sans-serif"}}>
+        <div style={{maxWidth:560,background:"#fff",border:"1px solid #DDD8CC",borderRadius:14,padding:24,boxShadow:"0 10px 30px rgba(0,0,0,.08)"}}>
+          <div style={{fontSize:20,fontWeight:700,color:"#1B2A4A",marginBottom:8}}>Something went wrong on this page.</div>
+          <div style={{fontSize:13,color:"#5C5C5C",lineHeight:1.6,marginBottom:14}}>The data in Firebase is safe. Reload the page and try again. If this happens again, the technical error below will help us identify the exact screen problem.</div>
+          <pre style={{whiteSpace:"pre-wrap",fontSize:11,color:"#B33025",background:"#FDE8E6",padding:12,borderRadius:8,overflow:"auto"}}>{String(this.state.error && this.state.error.stack || this.state.error)}</pre>
+          <button onClick={()=>location.reload()} style={{padding:"10px 16px",background:"#1B2A4A",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontWeight:600}}>Reload</button>
+        </div>
+      </div>;
+    }
+    return this.props.children;
+  }
+}
+ReactDOM.createRoot(document.getElementById("root")).render(<BanahawErrorBoundary><App /></BanahawErrorBoundary>);
+</script>
+</body>
+</html>
