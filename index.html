@@ -1483,7 +1483,7 @@ function Ledger({ tenant, onBack, onCustomerView }) {
                   <th style={{ padding: "12px 10px", textAlign: "right" }}>Amount Paid</th>
                   <th style={{ padding: "12px 10px", textAlign: "right" }}>Balance</th>
                   <th style={{ padding: "12px 10px", textAlign: "left" }}>Remarks</th>
-                  <th style={{ padding: "12px 10px", textAlign: "center" }}>Signature</th>
+                  <th style={{ padding: "12px 10px", textAlign: "center", minWidth: 112, width: 112, whiteSpace: "nowrap" }}>Signature</th>
                 </tr>
               </thead>
               <tbody>
@@ -1528,14 +1528,14 @@ function Ledger({ tenant, onBack, onCustomerView }) {
                           {hasPaidDiffDate && <span style={{ fontSize: 10, padding: "2px 5px", background: C.goldBg, color: C.gold, borderRadius: 4, fontWeight: 600 }}>Paid {e.datePaid}</span>}
                         </div>
                       </td>
-                      <td style={{ padding: "8px 10px", textAlign: "center" }}>
+                      <td style={{ padding: "8px 10px", textAlign: "center", minWidth: 112, width: 112, whiteSpace: "nowrap" }}>
                         {e.signature ? (
-                          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
-                            <button onClick={() => setSigningDate(day)} style={{ background: "none", border: `2px solid ${C.greenBg}`, borderRadius: 6, padding: 4, cursor: "pointer" }} title="Click to re-sign">
-                              <img src={e.signature} alt="Sig" style={{ height: 22, maxWidth: 80 }} />
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 5, width: "100%", minWidth: 0, flexWrap: "nowrap", overflow: "visible" }}>
+                            <button onClick={() => setSigningDate(day)} style={{ background: "none", border: `2px solid ${C.greenBg}`, borderRadius: 6, padding: 4, cursor: "pointer", width: 72, minWidth: 72, maxWidth: 72, height: 32, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", flex: "0 0 72px" }} title="Click to re-sign">
+                              <img src={e.signature} alt="Sig" style={{ display: "block", height: 22, width: 62, maxWidth: 62, minWidth: 0, objectFit: "contain" }} />
                             </button>
                             <button onClick={(ev) => { ev.stopPropagation(); if (window.confirm('Delete this signature?')) { updateEntry(day, { signature: null }); } }}
-                              style={{ width: 20, height: 20, borderRadius: "50%", background: C.redBg, border: `1px solid ${C.red}`, color: C.red, fontSize: 12, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1, flexShrink: 0 }} title="Delete signature">×</button>
+                              style={{ width: 22, minWidth: 22, maxWidth: 22, height: 22, flex: "0 0 22px", borderRadius: "50%", background: C.redBg, border: `1px solid ${C.red}`, color: C.red, fontSize: 12, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1, padding: 0 }} title="Delete signature">×</button>
                           </div>
                         ) : (
                           <button onClick={() => setSigningDate(day)} className="btn-hover" style={{ padding: "4px 10px", fontSize: 11, border: `1.5px dashed ${C.border}`, borderRadius: 6, background: "transparent", color: C.inkS, cursor: "pointer", fontWeight: 500 }}>✎ Sign</button>
@@ -1834,8 +1834,8 @@ function CategoryReport({ category, onBack }) {
   const [tenants, setTenants] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [useDateRange, setUseDateRange] = useState(false);
-  const [fromDay, setFromDay] = useState(1);
-  const [toDay, setToDay] = useState(today.getDate());
+  const [fromDate, setFromDate] = useState(`${today.getFullYear()}-${pad(today.getMonth() + 1)}-01`);
+  const [toDate, setToDate] = useState(`${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`);
   const [showPerDay, setShowPerDay] = useState(false);
   const [expandedTenant, setExpandedTenant] = useState(null);
 
@@ -1872,10 +1872,29 @@ function CategoryReport({ category, onBack }) {
 
   const numDays = dim(year, month);
   const days = Array.from({ length: numDays }, (_, i) => i + 1);
-  const activeDays = useDateRange ? days.filter(function(d) { return d >= fromDay && d <= toDay; }) : days;
 
-  const getEntries = async (tenant) => {
-    const key = `entries:${tenant.category}:${tenant.id}:${year}-${pad(month)}`;
+  // Build the actual dates used by the report. When date-range mode is on,
+  // the range can cross month/year boundaries (for example Sep 12 -> Oct 13).
+  const selectedStart = useDateRange ? new Date(`${fromDate}T00:00:00`) : new Date(year, month - 1, 1);
+  const selectedEnd = useDateRange ? new Date(`${toDate}T00:00:00`) : new Date(year, month - 1, numDays);
+  const rangeIsValid = !Number.isNaN(selectedStart.getTime()) && !Number.isNaN(selectedEnd.getTime()) && selectedStart <= selectedEnd;
+
+  const activeDates = [];
+  if (rangeIsValid) {
+    const cursor = new Date(selectedStart);
+    while (cursor <= selectedEnd) {
+      activeDates.push({
+        dateKey: dk(cursor.getFullYear(), cursor.getMonth() + 1, cursor.getDate()),
+        year: cursor.getFullYear(),
+        month: cursor.getMonth() + 1,
+        day: cursor.getDate()
+      });
+      cursor.setDate(cursor.getDate() + 1);
+    }
+  }
+
+  const getEntries = async (tenant, targetYear, targetMonth) => {
+    const key = `entries:${tenant.category}:${tenant.id}:${targetYear}-${pad(targetMonth)}`;
     let localData = {};
     try {
       const r = await window.storage.get(key);
@@ -1894,18 +1913,33 @@ function CategoryReport({ category, onBack }) {
   const [tenantTotals, setTenantTotals] = useState([]);
 
   useEffect(() => {
-    if (!loaded || tenants.length === 0) return;
+    if (!loaded || tenants.length === 0 || !rangeIsValid) {
+      setTenantTotals([]);
+      return;
+    }
+    let cancelled = false;
     (async () => {
       const results = [];
-      var tenantsList = tenants;
-      for (var ti = 0; ti < tenantsList.length; ti++) {
-        var t = tenantsList[ti];
-        const entries = await getEntries(t);
-        var presentC = 0, absentC = 0, signedC = 0;
-        var rentSum = 0, aykaSum = 0, motherSum = 0, garbSum = 0, totalDue = 0, paidSum = 0, balSum = 0;
-        var dayData = [];
-        activeDays.forEach(function(d) {
-          const e = entries[dk(year, month, d)] || { status: null, signature: null };
+      for (let ti = 0; ti < tenants.length; ti++) {
+        const t = tenants[ti];
+
+        // Load each required month once, then use the selected date range.
+        const monthCache = {};
+        for (let ri = 0; ri < activeDates.length; ri++) {
+          const ad = activeDates[ri];
+          const mk = `${ad.year}-${pad(ad.month)}`;
+          if (!Object.prototype.hasOwnProperty.call(monthCache, mk)) {
+            monthCache[mk] = await getEntries(t, ad.year, ad.month);
+          }
+        }
+
+        let presentC = 0, absentC = 0, signedC = 0;
+        let rentSum = 0, aykaSum = 0, motherSum = 0, garbSum = 0, totalDue = 0, paidSum = 0, balSum = 0;
+        const dayData = [];
+
+        activeDates.forEach(function(ad) {
+          const entries = monthCache[`${ad.year}-${pad(ad.month)}`] || {};
+          const e = entries[ad.dateKey] || { status: null, signature: null };
           const rent = rowRent(e, t);
           const ayka = rowAyka(e, t);
           const mother = rowMother(e, t);
@@ -1928,9 +1962,12 @@ function CategoryReport({ category, onBack }) {
             balSum += bal;
           }
 
-          const dObj = new Date(year, month - 1, d);
+          const dObj = new Date(ad.year, ad.month - 1, ad.day);
           dayData.push({
-            day: d,
+            day: ad.day,
+            month: ad.month,
+            year: ad.year,
+            dateKey: ad.dateKey,
             weekday: dObj.toLocaleDateString("en-PH", { weekday: "short" }),
             status: e.status,
             rent: rent,
@@ -1947,16 +1984,17 @@ function CategoryReport({ category, onBack }) {
             remarks: e.remarks || ""
           });
         });
+
         results.push({
-          ...t,
-          presentC, absentC, signedC,
+          ...t, presentC, absentC, signedC,
           rentSum, aykaSum, motherSum, garbSum, totalDue, paidSum, balSum,
-          days: activeDays.length, dayData
+          days: activeDates.length, dayData
         });
       }
-      setTenantTotals(results);
+      if (!cancelled) setTenantTotals(results);
     })();
-  }, [loaded, tenants, year, month, fromDay, toDay, useDateRange]);
+    return () => { cancelled = true; };
+  }, [loaded, tenants, year, month, fromDate, toDate, useDateRange]);
 
   const grandTotal = tenantTotals.reduce((s, t) => s + t.totalDue, 0);
   const grandAyka = tenantTotals.reduce((s, t) => s + t.aykaSum, 0);
@@ -1972,7 +2010,7 @@ function CategoryReport({ category, onBack }) {
     const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
     const pw = 210, ph = 297, ml = 10, mr = 10, contentW = pw - ml - mr;
     let y = 13;
-    const periodText = useDateRange ? `${MONTHS[month - 1]} ${fromDay}-${toDay}, ${year}` : `${MONTHS[month - 1]} ${year}`;
+    const periodText = useDateRange ? `${new Date(`${fromDate}T00:00:00`).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" })} - ${new Date(`${toDate}T00:00:00`).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" })}` : `${MONTHS[month - 1]} ${year}`;
 
     doc.setTextColor(27, 42, 74); doc.setFont("helvetica", "bold"); doc.setFontSize(16);
     doc.text("BANAHAW FOOD PARK", pw / 2, y, { align: "center" });
@@ -2005,7 +2043,7 @@ function CategoryReport({ category, onBack }) {
 
     doc.setFont("helvetica","bold"); doc.setFontSize(9); doc.setTextColor(27,42,74); doc.text(`PER DAY DETAIL — ${periodText}`,ml,y); y+=4;
     const detailRows=[];
-    tenantTotals.forEach(t=>t.dayData.forEach(dd=>detailRows.push({tenant:t.name,day:`${MONTHS[month-1].slice(0,3)} ${dd.day}`,status:dd.status?(dd.status==="present"?"Present":"Absent"):"—",due:dd.total,paid:dd.paid,bal:dd.bal,covered:dd.coveredDate||"—",paidDate:dd.datePaid||"—",remarks:dd.remarks||"—",signature:dd.signature||null})));
+    tenantTotals.forEach(t=>t.dayData.forEach(dd=>detailRows.push({tenant:t.name,day:`${MONTHS[dd.month-1].slice(0,3)} ${dd.day}, ${String(dd.year).slice(-2)}`,status:dd.status?(dd.status==="present"?"Present":"Absent"):"—",due:dd.total,paid:dd.paid,bal:dd.bal,covered:dd.coveredDate||"—",paidDate:dd.datePaid||"—",remarks:dd.remarks||"—",signature:dd.signature||null})));
     if(!detailRows.length){doc.setFont("helvetica","normal");doc.setFontSize(8);doc.setTextColor(100,95,85);doc.text("No recorded entries for the selected date range.",ml,y+5);}
     else {
       const body=detailRows.map(r=>[r.tenant,r.day,r.status,pesoPdf(r.due),pesoPdf(r.paid),pesoPdf(r.bal),r.covered,r.paidDate,r.remarks,r.signature?"":"—"]);
@@ -2020,11 +2058,19 @@ function CategoryReport({ category, onBack }) {
     doc.setFont("helvetica","normal"); doc.setFontSize(6.5); doc.setTextColor(140,135,125);
     doc.text("This report reflects the selected date range only. Signatures shown are the signatures recorded for the corresponding entry.",ml,ph-12);
     doc.text("Banahaw Food Park | Brgy. Ibabang Iyam, Lucena City",ml,ph-7); doc.text(new Date().toLocaleDateString("en-PH"),pw-mr,ph-7,{align:"right"});
-    const rangeSuffix=useDateRange?`_Day${fromDay}-${toDay}`:"_FullMonth";
-    doc.save(`${categoryLabel(category)}_${MONTHS[month-1]}_${year}_CategoryReport${rangeSuffix}.pdf`);
+    const rangeSuffix=useDateRange?`_${fromDate}_to_${toDate}`:"_FullMonth";
+    doc.save(`${categoryLabel(category)}_CategoryReport${rangeSuffix}.pdf`);
   };
 
-  const changeMonth = (delta) => { let m = month + delta, y = year; if (m > 12) { m = 1; y++; } else if (m < 1) { m = 12; y--; } setMonth(m); setYear(y); setFromDay(1); setToDay(dim(y, m)); };
+  const changeMonth = (delta) => {
+    let m = month + delta, y = year;
+    if (m > 12) { m = 1; y++; } else if (m < 1) { m = 12; y--; }
+    setMonth(m); setYear(y);
+    if (useDateRange) {
+      setFromDate(`${y}-${pad(m)}-01`);
+      setToDate(`${y}-${pad(m)}-${pad(dim(y, m))}`);
+    }
+  };
 
   return (
     <div style={{ minHeight: "100vh", background: C.paper }}>
@@ -2044,7 +2090,7 @@ function CategoryReport({ category, onBack }) {
         </div>
 
         <div style={{ marginBottom: 16, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', justifyContent: 'center' }}>
-          <button onClick={() => { setUseDateRange(!useDateRange); if (!useDateRange) { setFromDay(1); setToDay(numDays); } }} className="btn-hover"
+          <button onClick={() => { const next = !useDateRange; setUseDateRange(next); if (next) { setFromDate(`${year}-${pad(month)}-01`); setToDate(`${year}-${pad(month)}-${pad(numDays)}`); } }} className="btn-hover"
             style={{ padding: '8px 16px', background: useDateRange ? C.navy : '#fff', color: useDateRange ? '#fff' : C.ink, border: `1px solid ${useDateRange ? C.navy : C.border}`, borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
             {useDateRange ? 'Done ' : 'Select Days'}
           </button>
@@ -2056,17 +2102,13 @@ function CategoryReport({ category, onBack }) {
         {useDateRange && (
           <div className="slide-up" style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '12px 16px', background: '#fff', border: `1px solid ${C.borderL}`, borderRadius: 10, justifyContent: 'center' }}>
             <span style={{ fontSize: 13, fontWeight: 600, color: C.inkS }}>From:</span>
-            <select value={fromDay} onChange={(e) => { const v = Number(e.target.value); setFromDay(v); if (v > toDay) setToDay(v); }}
-              style={{ padding: '7px 10px', border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 13, background: '#fff', color: C.ink }}>
-              {days.map(function(d) { return <option key={d} value={d}>{MONTHS[month-1].slice(0,3)} {d}</option>; })}
-            </select>
+            <input type="date" value={fromDate} max={toDate || undefined} onChange={(e) => { const v = e.target.value; setFromDate(v); if (toDate && v > toDate) setToDate(v); }}
+              style={{ padding: '7px 10px', border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 13, background: '#fff', color: C.ink }} />
             <span style={{ fontSize: 13, color: C.inkS }}>→</span>
             <span style={{ fontSize: 13, fontWeight: 600, color: C.inkS }}>To:</span>
-            <select value={toDay} onChange={(e) => { const v = Number(e.target.value); setToDay(v); if (v < fromDay) setFromDay(v); }}
-              style={{ padding: '7px 10px', border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 13, background: '#fff', color: C.ink }}>
-              {days.filter(function(d) { return d >= fromDay; }).map(function(d) { return <option key={d} value={d}>{MONTHS[month-1].slice(0,3)} {d}</option>; })}
-            </select>
-            <span style={{ fontSize: 12, color: C.inkS }}>{activeDays.length} day{activeDays.length !== 1 ? 's' : ''}</span>
+            <input type="date" value={toDate} min={fromDate || undefined} onChange={(e) => { const v = e.target.value; setToDate(v); if (fromDate && v < fromDate) setFromDate(v); }}
+              style={{ padding: '7px 10px', border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 13, background: '#fff', color: C.ink }} />
+            <span style={{ fontSize: 12, color: C.inkS }}>{activeDates.length} day{activeDates.length !== 1 ? 's' : ''}</span>
           </div>
         )}
 
@@ -2150,7 +2192,7 @@ function CategoryReport({ category, onBack }) {
         {showPerDay && tenantTotals.length > 0 && (
           <div className="fade-in" style={{ marginTop: 20 }}>
             <div style={{ fontSize: 14, fontWeight: 700, color: C.navy, marginBottom: 12, textTransform: 'uppercase', letterSpacing: 1 }}>
-              Per Day Breakdown {useDateRange ? '(Day ' + fromDay + '-' + toDay + ')' : '(Full Month)'}
+              Per Day Breakdown {useDateRange ? '(' + fromDate + ' → ' + toDate + ')' : '(Full Month)'}
             </div>
             {tenantTotals.map(function(t) {
               return (
